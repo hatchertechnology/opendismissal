@@ -1,0 +1,34 @@
+[project]
+name = "opendismissal"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "bandit>=1.8.6",
+    "daphne>=4.2.1",
+    "dj-database-url>=3.0.1",
+    "django>=5.2.4",
+    "django-allauth[saml,socialaccount]>=65.10.0",
+    "django-channels>=0.7.0",
+    "django-storages[s3]>=1.14.6",
+    "loguru>=0.7.3",
+    "psycopg[binary]>=3.2.9",
+    "python-decouple>=3.8",
+    "safety>=3.6.0",
+]
+
+[dependency-groups]
+dev = [
+    "djlint>=1.36.4",
+    "ruff>=0.12.7",
+]
+
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
