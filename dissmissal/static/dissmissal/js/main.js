@@ -184,6 +184,7 @@ const OpenDismissal = {
         this.setupGlobalEventListeners();
         this.setupServiceWorker();
         this.setupNetworkMonitoring();
+        this.setupPerformanceMonitoring();
         
         // Initialize page-specific functionality
         this.initializePage();
@@ -290,10 +291,27 @@ const OpenDismissal = {
     setupServiceWorker() {
         // Register service worker for offline functionality
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                console.log('Service Worker registered successfully');
+            navigator.serviceWorker.register('/static/sw.js').then(function(registration) {
+                console.log('OpenDismissal Service Worker registered successfully');
+                
+                // Listen for service worker updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New service worker available, notify user
+                                OpenDismissal.utils.showMessage(
+                                    'App updated! Refresh to use the latest version.', 
+                                    'info', 
+                                    10000
+                                );
+                            }
+                        });
+                    }
+                });
             }).catch(function(error) {
-                console.log('Service Worker registration failed:', error);
+                console.log('OpenDismissal Service Worker registration failed:', error);
             });
         }
     },
@@ -326,6 +344,48 @@ const OpenDismissal = {
                 }
             });
         }
+    },
+    
+    setupPerformanceMonitoring() {
+        // Performance monitoring for development and debugging
+        if ('PerformanceObserver' in window) {
+            const observer = new PerformanceObserver((list) => {
+                list.getEntries().forEach((entry) => {
+                    // Log slow operations for debugging
+                    if (entry.duration > 100) {
+                        console.warn(`OpenDismissal Performance: Slow operation detected - ${entry.name} took ${entry.duration.toFixed(2)}ms`);
+                    }
+                    
+                    // Track API request performance
+                    if (entry.name.includes('/dissmissal/api/')) {
+                        console.log(`OpenDismissal API Performance: ${entry.name} - ${entry.duration.toFixed(2)}ms`);
+                    }
+                });
+            });
+            
+            try {
+                observer.observe({entryTypes: ['measure', 'navigation', 'resource']});
+            } catch (e) {
+                console.log('OpenDismissal: Performance monitoring not fully supported');
+            }
+        }
+        
+        // Track page load performance
+        window.addEventListener('load', () => {
+            if ('performance' in window && 'timing' in performance) {
+                const timing = performance.timing;
+                const loadTime = timing.loadEventEnd - timing.navigationStart;
+                
+                if (loadTime > 0) {
+                    console.log(`OpenDismissal Page Load: ${loadTime}ms`);
+                    
+                    // Log slow page loads
+                    if (loadTime > 3000) {
+                        console.warn(`OpenDismissal: Slow page load detected - ${loadTime}ms`);
+                    }
+                }
+            }
+        });
     },
     
     initializePage() {

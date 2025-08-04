@@ -205,10 +205,52 @@
         {% block extra_js %}{% endblock %}
         <!-- Global error handling -->
         <script>
-        // Global error handler for AJAX requests
+        // Enhanced error tracking system
+        const ErrorTracker = {
+            capture(error, context = {}) {
+                const errorData = {
+                    message: error.message || 'Unknown error',
+                    stack: error.stack,
+                    url: window.location.href,
+                    userAgent: navigator.userAgent,
+                    timestamp: new Date().toISOString(),
+                    context: context
+                };
+                
+                console.error('OpenDismissal Error:', errorData);
+                
+                // Future enhancement: Send to error tracking service
+                // if (window.errorTrackingService) {
+                //     window.errorTrackingService.captureException(errorData);
+                // }
+                
+                // Store locally for debugging
+                try {
+                    const errors = JSON.parse(localStorage.getItem('opendismissal_errors') || '[]');
+                    errors.push(errorData);
+                    // Keep only last 10 errors
+                    localStorage.setItem('opendismissal_errors', JSON.stringify(errors.slice(-10)));
+                } catch (e) {
+                    // localStorage might be full or unavailable
+                }
+            }
+        };
+        
+        // Global error handler with structured tracking
         window.addEventListener('error', function(e) {
-            console.error('Global error:', e.error);
-            // Could send to error tracking service
+            ErrorTracker.capture(e.error || new Error(e.message), {
+                type: 'javascript_error',
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno
+            });
+        });
+        
+        // Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(e) {
+            ErrorTracker.capture(new Error(e.reason), {
+                type: 'unhandled_promise_rejection'
+            });
         });
         
         // Handle network failures gracefully
