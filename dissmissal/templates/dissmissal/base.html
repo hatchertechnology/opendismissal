@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <meta name="format-detection" content="telephone=no">
+        <meta name="theme-color" content="#0d6efd">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <title>
+            {% block title %}OpenDismissal{% endblock %}
+        - {{ page_title|default:"School Dismissal System" }}</title>
+        <!-- Bootstrap 5.3 CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+              rel="stylesheet">
+        <!-- Bootstrap Icons -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+        <!-- Custom CSS -->
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'dissmissal/css/main.css' %}">
+        {% block extra_css %}{% endblock %}
+        <style>
+        /* Critical above-fold CSS inlined for performance */
+        
+        /* iOS-specific fixes to prevent zoom on input focus */
+        input[type="text"], 
+        input[type="email"], 
+        input[type="password"], 
+        input[type="number"], 
+        input[type="tel"], 
+        textarea, 
+        select {
+            font-size: 16px !important; /* Prevents iOS zoom */
+        }
+        
+        /* Mobile-optimized touch targets */
+        .btn-mobile {
+            min-height: 44px;
+            min-width: 44px;
+            font-size: 16px;
+            padding: 12px 20px;
+            font-weight: 500;
+        }
+        
+        .form-control-mobile {
+            font-size: 16px;
+            padding: 12px 16px;
+            min-height: 44px;
+            border-radius: 8px;
+        }
+        
+        /* High contrast for outdoor visibility */
+        .status-waiting { 
+            background-color: #fff3cd; 
+            border-color: #ffecb5; 
+            color: #664d03; 
+        }
+        .status-arrived { 
+            background-color: #d1ecf1; 
+            border-color: #bee5eb; 
+            color: #0c5460; 
+        }
+        .status-picked-up { 
+            background-color: #d4edda; 
+            border-color: #c3e6cb; 
+            color: #155724; 
+        }
+        
+        /* Loading states */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        /* Accessibility improvements */
+        .visually-hidden-focusable:not(:focus):not(:focus-within) {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        </style>
+    </head>
+    <body>
+        <!-- Skip navigation for accessibility -->
+        <a href="#main-content"
+           class="visually-hidden-focusable btn btn-primary">Skip to main content</a>
+        <!-- Navigation Header -->
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+            <div class="container-fluid">
+                <!-- Logo/Brand -->
+                <a class="navbar-brand fw-bold" href="{% url 'dissmissal:dashboard' %}">
+                    <i class="bi bi-mortarboard-fill me-2"></i>
+                    OpenDismissal
+                </a>
+                <!-- Mobile menu toggle -->
+                <button class="navbar-toggler"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <!-- Navigation items -->
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                               href="{% url 'dissmissal:dashboard' %}">
+                                <i class="bi bi-speedometer2 me-1"></i>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'parent_arrival' %}active{% endif %}"
+                               href="{% url 'dissmissal:parent_arrival' %}">
+                                <i class="bi bi-person-plus me-1"></i>
+                                Parent Arrival
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'student_pickup' %}active{% endif %}"
+                               href="#"
+                               onclick="showMessage('Please select a student from the dashboard to complete pickup', 'info')">
+                                <i class="bi bi-check-circle me-1"></i>
+                                Complete Pickup
+                            </a>
+                        </li>
+                    </ul>
+                    <!-- User info and logout -->
+                    <div class="navbar-nav">
+                        <span class="navbar-text me-3">
+                            <i class="bi bi-person-circle me-1"></i>
+                            {{ user.get_full_name|default:user.username }}
+                        </span>
+                        <a class="nav-link" href="{% url 'admin:logout' %}">
+                            <i class="bi bi-box-arrow-right me-1"></i>
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <!-- Main content area -->
+        <main id="main-content" class="container-fluid py-3">
+            <!-- Alert messages -->
+            {% if messages %}
+                <div id="messages-container">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show"
+                             role="alert">
+                            <i class="bi bi-{% if message.tags == 'error' %}exclamation-triangle{% elif message.tags == 'warning' %}exclamation-circle{% elif message.tags == 'success' %}check-circle{% else %}info-circle{% endif %} me-2"></i>
+                            {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <!-- Page header -->
+            {% block page_header %}
+                {% if page_title %}
+                    <div class="row mb-3">
+                        <div class="col">
+                            <h1 class="h2 mb-0">{{ page_title }}</h1>
+                            {% block page_subtitle %}{% endblock %}
+                        </div>
+                        {% block page_actions %}{% endblock %}
+                    </div>
+                {% endif %}
+            {% endblock %}
+            <!-- Page content -->
+            {% block content %}{% endblock %}
+        </main>
+        <!-- Footer -->
+        <footer class="bg-light border-top py-3 mt-auto">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            OpenDismissal - Secure Student Dismissal Management
+                            <br>
+                            <small>Author: Nathan Clarke</small>
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">
+                            Last updated: <span id="last-update-time">{{ last_updated|date:"g:i A" }}</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </footer>
+        <!-- JavaScript -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="{% static 'dissmissal/js/main.js' %}"></script>
+        {% block extra_js %}{% endblock %}
+        <!-- Global error handling -->
+        <script>
+        // Global error handler for AJAX requests
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            // Could send to error tracking service
+        });
+        
+        // Handle network failures gracefully
+        window.addEventListener('offline', function() {
+            showMessage('You are offline. Some features may be limited.', 'warning');
+        });
+        
+        window.addEventListener('online', function() {
+            showMessage('Connection restored.', 'success');
+            // Refresh data when back online
+            if (typeof refreshDashboard === 'function') {
+                refreshDashboard();
+            }
+        });
+        </script>
+    </body>
+</html>

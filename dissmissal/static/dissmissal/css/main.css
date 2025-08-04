@@ -1,0 +1,389 @@
+/* OpenDismissal Custom Styles */
+/* Author: Nathan Clarke */
+
+/* CSS Variables for consistent theming */
+:root {
+    --od-primary: #0d6efd;
+    --od-success: #198754;
+    --od-info: #0dcaf0;
+    --od-warning: #ffc107;
+    --od-danger: #dc3545;
+    --od-light: #f8f9fa;
+    --od-dark: #212529;
+    
+    /* Mobile optimizations */
+    --od-touch-target: 44px;
+    --od-border-radius: 8px;
+    --od-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    :root {
+        --od-primary: #0000ff;
+        --od-success: #008000;
+        --od-warning: #ff8c00;
+        --od-danger: #ff0000;
+    }
+}
+
+/* Loading animations */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Mobile-first responsive utilities */
+.btn-mobile {
+    min-height: var(--od-touch-target);
+    min-width: var(--od-touch-target);
+    font-size: 16px !important; /* Prevent iOS zoom */
+    font-weight: 500;
+    border-radius: var(--od-border-radius);
+    padding: 12px 20px;
+}
+
+.form-control-mobile {
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: var(--od-touch-target);
+    border-radius: var(--od-border-radius);
+    padding: 12px 16px;
+}
+
+/* Enhanced form controls for outdoor use */
+.form-control:focus {
+    border-color: var(--od-primary);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.form-select:focus {
+    border-color: var(--od-primary);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Status-specific styling */
+.status-waiting {
+    background-color: #fff3cd;
+    border-color: #ffecb5;
+    color: #664d03;
+}
+
+.status-arrived {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+.status-picked-up {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+/* Table enhancements for mobile */
+.table-responsive {
+    border-radius: var(--od-border-radius);
+}
+
+@media (max-width: 767.98px) {
+    .table td {
+        padding: 0.75rem 0.5rem;
+        font-size: 14px;
+    }
+    
+    .table th {
+        padding: 0.75rem 0.5rem;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+}
+
+/* Card enhancements */
+.card {
+    border: none;
+    box-shadow: var(--od-shadow);
+    border-radius: var(--od-border-radius);
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0,0,0,0.125);
+    background-color: rgba(0,0,0,0.03);
+    font-weight: 600;
+}
+
+/* Statistics cards */
+.card.bg-primary,
+.card.bg-success,
+.card.bg-info,
+.card.bg-warning {
+    background-image: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent);
+    background-size: 20px 20px;
+}
+
+/* Navigation enhancements */
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.5rem;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-nav {
+        padding-top: 1rem;
+    }
+    
+    .navbar-nav .nav-link {
+        padding: 0.75rem 1rem;
+        border-radius: var(--od-border-radius);
+        margin-bottom: 0.25rem;
+    }
+    
+    .navbar-nav .nav-link.active {
+        background-color: rgba(255,255,255,0.1);
+    }
+}
+
+/* Alert message enhancements */
+.alert {
+    border: none;
+    border-radius: var(--od-border-radius);
+    box-shadow: var(--od-shadow);
+}
+
+.alert-dismissible .btn-close {
+    padding: 0.75rem;
+}
+
+/* Modal enhancements for mobile */
+@media (max-width: 575.98px) {
+    .modal-dialog {
+        margin: 1rem;
+        max-width: none;
+    }
+    
+    .modal-content {
+        border-radius: var(--od-border-radius);
+    }
+}
+
+/* Badge enhancements */
+.badge {
+    font-weight: 500;
+    padding: 0.5em 0.75em;
+    border-radius: 6px;
+}
+
+/* List group enhancements */
+.list-group-item {
+    border-left: none;
+    border-right: none;
+}
+
+.list-group-item:first-child {
+    border-top: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+/* Pagination enhancements */
+.pagination .page-link {
+    border-radius: var(--od-border-radius);
+    margin: 0 2px;
+    border: 1px solid #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--od-primary);
+    border-color: var(--od-primary);
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Accessibility enhancements */
+.visually-hidden-focusable:not(:focus):not(:focus-within) {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* Focus indicators for keyboard navigation */
+.btn:focus,
+.form-control:focus,
+.form-select:focus {
+    outline: 2px solid var(--od-primary);
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .navbar,
+    .btn,
+    .modal,
+    .alert-dismissible .btn-close {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+    
+    .table {
+        font-size: 12px;
+    }
+    
+    .badge {
+        border: 1px solid currentColor;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --od-light: #343a40;
+        --od-dark: #f8f9fa;
+    }
+    
+    .card {
+        background-color: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .table {
+        --bs-table-bg: #2d3748;
+        --bs-table-color: #e2e8f0;
+    }
+    
+    .form-control {
+        background-color: #4a5568;
+        border-color: #718096;
+        color: #e2e8f0;
+    }
+    
+    .form-control:focus {
+        background-color: #4a5568;
+        border-color: var(--od-primary);
+        color: #e2e8f0;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .spin {
+        animation: none;
+    }
+}
+
+/* Custom utilities */
+.user-select-all {
+    user-select: all;
+    -webkit-user-select: all;
+    -moz-user-select: all;
+    -ms-user-select: all;
+}
+
+.text-shadow {
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.box-shadow-sm {
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.box-shadow {
+    box-shadow: var(--od-shadow);
+}
+
+.border-radius {
+    border-radius: var(--od-border-radius);
+}
+
+/* Animation utilities */
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+    .btn:hover {
+        transform: none;
+    }
+    
+    .btn:active {
+        transform: scale(0.98);
+    }
+    
+    .card:hover {
+        transform: none;
+    }
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+    .form-control-mobile,
+    .btn-mobile {
+        -webkit-appearance: none;
+        border-radius: var(--od-border-radius);
+    }
+    
+    .navbar {
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+    }
+}
