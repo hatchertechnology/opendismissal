@@ -11,10 +11,12 @@ dependencies = [
     "django>=5.2.4",
     "django-allauth[saml,socialaccount]>=65.10.0",
     "django-channels>=0.7.0",
+    "django-ratelimit>=4.1.0",
     "django-storages[s3]>=1.14.6",
     "loguru>=0.7.3",
     "psycopg[binary]>=3.2.9",
     "python-decouple>=3.8",
+    "redis>=5.0.0",
     "safety>=3.6.0",
 ]
 
