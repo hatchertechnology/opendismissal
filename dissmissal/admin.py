@@ -1,17 +1,26 @@
+"""
+OpenDismissal Admin Configuration
+
+Admin interface for managing students and pickup events.
+Author: Derek Hayes (Developer 2) & Elena Rodriguez (Developer 1)
+"""
+
 from django.contrib import admin
+from django.utils.html import format_html
+from django.urls import reverse
 from .models import Student, PickupEvent
 
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    """Enhanced admin interface for student management"""
+    """Enhanced admin interface for student management with visual enhancements and bulk actions"""
 
     list_display = [
         "name",
-        "dismissal_code",
+        "dismissal_code_display",
         "grade",
         "teacher",
-        "current_status",
+        "current_status_badge",
         "status_updated_at",
         "is_active",
     ]
@@ -27,6 +36,35 @@ class StudentAdmin(admin.ModelAdmin):
     )
 
     actions = ["reset_to_waiting", "deactivate_students", "generate_new_codes"]
+
+    def dismissal_code_display(self, obj):
+        """Display dismissal code with monospace font"""
+        return format_html(
+            '<code style="font-family: monospace; font-weight: bold;">{}</code>', obj.dismissal_code
+        )
+
+    dismissal_code_display.short_description = "Dismissal Code"
+
+    def current_status_badge(self, obj):
+        """Display status with color-coded badge"""
+        colors = {
+            "WAITING": "#ffc107",  # Yellow
+            "PARENT_ARRIVED": "#17a2b8",  # Blue
+            "PICKED_UP": "#28a745",  # Green
+        }
+        color = colors.get(obj.current_status, "#6c757d")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_current_status_display(),
+        )
+
+    current_status_badge.short_description = "Status"
+
+    def get_queryset(self, request):
+        """Optimize queryset to reduce database queries"""
+        return super().get_queryset(request).select_related()
 
     def reset_to_waiting(self, request, queryset):
         """Reset selected students to waiting status"""
@@ -56,24 +94,26 @@ class StudentAdmin(admin.ModelAdmin):
 
 @admin.register(PickupEvent)
 class PickupEventAdmin(admin.ModelAdmin):
-    """Read-only audit interface for pickup events"""
+    """Read-only audit interface for pickup events with visual enhancements"""
 
     list_display = [
-        "student",
-        "event_type",
-        "staff_member",
         "timestamp",
+        "student_link",
+        "event_type_badge",
+        "staff_member_display",
         "dismissal_code_used",
         "ip_address",
     ]
     list_filter = ["event_type", "timestamp", "staff_member"]
     search_fields = [
         "student__name",
-        "dismissal_code_used",
+        "student__dismissal_code",
         "staff_member__username",
         "staff_member__first_name",
         "staff_member__last_name",
+        "dismissal_code_used",
     ]
+    date_hierarchy = "timestamp"
     ordering = ["-timestamp"]
 
     # Make all fields read-only for audit integrity
@@ -83,9 +123,52 @@ class PickupEventAdmin(admin.ModelAdmin):
         "event_type",
         "dismissal_code_used",
         "timestamp",
-        "notes",
         "ip_address",
+        "notes",
     ]
+
+    fieldsets = [
+        ("Event Details", {"fields": ["student", "event_type", "timestamp"]}),
+        ("Staff Information", {"fields": ["staff_member", "dismissal_code_used"]}),
+        ("Audit Trail", {"fields": ["ip_address", "notes"]}),
+    ]
+
+    def student_link(self, obj):
+        """Display student name as link to student admin page"""
+        url = reverse("admin:dissmissal_student_change", args=[obj.student.pk])
+        return format_html('<a href="{}">{}</a>', url, obj.student.name)
+
+    student_link.short_description = "Student"
+
+    def staff_member_display(self, obj):
+        """Display staff member with full name if available"""
+        full_name = obj.staff_member.get_full_name()
+        if full_name:
+            return f"{full_name} ({obj.staff_member.username})"
+        return obj.staff_member.username
+
+    staff_member_display.short_description = "Staff Member"
+
+    def event_type_badge(self, obj):
+        """Display event type with color-coded badge"""
+        colors = {
+            "PARENT_ARRIVED": "#17a2b8",  # Blue
+            "STUDENT_PICKED_UP": "#28a745",  # Green
+            "CANCELLED": "#dc3545",  # Red
+        }
+        color = colors.get(obj.event_type, "#6c757d")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_event_type_display(),
+        )
+
+    event_type_badge.short_description = "Event Type"
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related"""
+        return super().get_queryset(request).select_related("student", "staff_member")
 
     def has_add_permission(self, request):
         """Events should only be created through the application"""

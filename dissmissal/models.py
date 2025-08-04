@@ -1,7 +1,15 @@
-from django.db import models
-from django.contrib.auth.models import User
+"""
+OpenDismissal Models
+
+Core models for the dismissal management system.
+Author: Derek Hayes (Developer 2) & Elena Rodriguez (Developer 1)
+"""
+
 import secrets
 import string
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 
 
 class StudentManager(models.Manager):
@@ -27,29 +35,32 @@ class StudentManager(models.Manager):
 
 class Student(models.Model):
     """
-    Simplified student model with embedded dismissal code for MVP speed.
+    Student model with embedded dismissal code for simplified architecture.
     Includes status tracking optimization for dashboard performance.
     """
 
-    name = models.CharField(max_length=100, help_text="Full student name")
+    STATUS_CHOICES = [
+        ("WAITING", "Waiting for Parent"),
+        ("PARENT_ARRIVED", "Parent Has Arrived"),
+        ("PICKED_UP", "Student Picked Up"),
+    ]
+
+    # Core student information
+    name = models.CharField(max_length=100, help_text="Student's full name")
     dismissal_code = models.CharField(
         max_length=8,
         unique=True,
         db_index=True,
         help_text="Unique 6-8 character code for parent verification",
     )
-    grade = models.CharField(max_length=20, help_text="Student grade level")
+    grade = models.CharField(max_length=20, help_text="Student's grade level")
     teacher = models.CharField(max_length=100, help_text="Homeroom teacher name")
-    is_active = models.BooleanField(default=True, help_text="Active in current dismissal")
 
-    # Status tracking optimization (from Jake v2.0 plan)
+    # Status tracking
+    is_active = models.BooleanField(default=True, help_text="Active in current dismissal")
     current_status = models.CharField(
         max_length=20,
-        choices=[
-            ("WAITING", "Waiting for Parent"),
-            ("PARENT_ARRIVED", "Parent Has Arrived"),
-            ("PICKED_UP", "Student Picked Up"),
-        ],
+        choices=STATUS_CHOICES,
         default="WAITING",
         db_index=True,
         help_text="Current dismissal status for quick dashboard queries",
@@ -72,12 +83,32 @@ class Student(models.Model):
         verbose_name_plural = "Students"
 
     def __str__(self):
-        return f"{self.name} ({self.dismissal_code})"
+        return f"{self.name} ({self.dismissal_code}) - {self.get_current_status_display()}"
+
+    def clean(self):
+        """Validate student data"""
+        if not self.name or len(self.name.strip()) < 2:
+            raise ValidationError("Student name must be at least 2 characters long")
+
+        if not self.grade or not self.grade.strip():
+            raise ValidationError("Grade level is required")
+
+        if not self.teacher or not self.teacher.strip():
+            raise ValidationError("Teacher name is required")
 
     def save(self, *args, **kwargs):
-        """Auto-generate dismissal code if not provided"""
+        """Auto-generate dismissal code if not provided and validate data"""
+        self.full_clean()
+
+        # Generate dismissal code if not provided
         if not self.dismissal_code:
             self.dismissal_code = self.generate_dismissal_code()
+
+        # Format names properly
+        self.name = self.name.strip().title()
+        self.teacher = self.teacher.strip().title()
+        self.grade = self.grade.strip()
+
         super().save(*args, **kwargs)
 
     @classmethod
@@ -100,7 +131,6 @@ class Student(models.Model):
         today = timezone.now().date()
         return self.pickup_events.filter(timestamp__date=today).order_by("-timestamp")
 
-
 class PickupEvent(models.Model):
     """
     Event-driven audit trail for all dismissal actions.
@@ -113,6 +143,7 @@ class PickupEvent(models.Model):
         ("CANCELLED", "Pickup Cancelled"),
     ]
 
+    # Core event information
     student = models.ForeignKey(
         Student,
         on_delete=models.CASCADE,
@@ -127,13 +158,13 @@ class PickupEvent(models.Model):
     event_type = models.CharField(
         max_length=20, choices=EVENT_TYPE_CHOICES, help_text="Type of dismissal event"
     )
+
+    # Audit information
     dismissal_code_used = models.CharField(
         max_length=8, help_text="The dismissal code that was used for verification"
     )
     timestamp = models.DateTimeField(auto_now_add=True, help_text="When this event occurred")
     notes = models.TextField(blank=True, help_text="Optional notes about this event")
-
-    # Basic audit fields for FERPA compliance
     ip_address = models.GenericIPAddressField(
         help_text="IP address of the staff member when event occurred"
     )
@@ -152,16 +183,28 @@ class PickupEvent(models.Model):
     def __str__(self):
         return f"{self.student.name} - {self.get_event_type_display()} by {self.staff_member.get_full_name() or self.staff_member.username}"
 
+    def clean(self):
+        """Validate event data"""
+        if not self.dismissal_code_used:
+            raise ValidationError("Dismissal code is required")
+
+        if not self.ip_address:
+            raise ValidationError("IP address is required for audit trail")
+
     def save(self, *args, **kwargs):
         """Update student status when pickup events are created"""
+        self.full_clean()
+
+        # Save the event first
         super().save(*args, **kwargs)
 
         # Update student's current status based on this event
         if self.event_type == "PARENT_ARRIVED":
             self.student.current_status = "PARENT_ARRIVED"
+            self.student.save(update_fields=["current_status", "status_updated_at"])
         elif self.event_type == "STUDENT_PICKED_UP":
             self.student.current_status = "PICKED_UP"
+            self.student.save(update_fields=["current_status", "status_updated_at"])
         elif self.event_type == "CANCELLED":
             self.student.current_status = "WAITING"
-
-        self.student.save(update_fields=["current_status", "status_updated_at"])
+            self.student.save(update_fields=["current_status", "status_updated_at"])

@@ -13,8 +13,8 @@ from decouple import config
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security Configuration
-SECRET_KEY = config("SECRET_KEY")
-DEBUG = config("DEBUG", default=False, cast=bool)
+SECRET_KEY = config("SECRET_KEY", default="django-insecure-k7vno7*j@93zn&k@l90$4n%*664v7s2)0q=pi7ve!r*=07h+ay")
+DEBUG = config("DEBUG", default=True, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost").split(",")
 
 # Application definition
