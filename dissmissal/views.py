@@ -19,7 +19,13 @@ from django.db import models
 
 import logging
 from .models import Student, PickupEvent
-from .forms import ParentArrivalForm, StudentPickupForm, AddStudentForm, DashboardFilterForm
+from .forms import (
+    ParentArrivalForm, 
+    StudentPickupForm, 
+    AddStudentForm, 
+    EditStudentForm, 
+    DashboardFilterForm
+)
 from .utils import (
     get_client_ip,
     log_audit_event,
@@ -143,10 +149,11 @@ def dashboard_view(request):
 @require_http_methods(["GET", "POST"])
 @ratelimit(key="user", rate="20/m", method=["POST"])  # Prevent brute force attempts
 @csrf_protect
-def parent_arrival_view(request):
+def parent_arrival_view(request, code=None):
     """
     Handle parent arrival workflow with comprehensive validation and audit logging.
     Includes rate limiting to prevent brute force dismissal code attempts.
+    Accepts optional code parameter to pre-populate the dismissal code field.
     """
     if request.method == "POST":
         form = ParentArrivalForm(request.POST)
@@ -258,7 +265,11 @@ def parent_arrival_view(request):
                     messages.error(request, f"{field}: {error}")
 
     else:
-        form = ParentArrivalForm()
+        # Pre-populate form with code from URL parameter if provided
+        initial_data = {}
+        if code:
+            initial_data['dismissal_code'] = code.upper()
+        form = ParentArrivalForm(initial=initial_data)
 
     # Get recent arrivals for context (last 10)
     recent_arrivals = (
@@ -447,3 +458,77 @@ def add_student_view(request):
     context = {"form": form, "page_title": "Add New Student"}
 
     return render(request, "dissmissal/add_student.html", context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+@csrf_protect
+def student_details_view(request, student_id):
+    """
+    View and edit student details.
+    Allows updating student information and viewing pickup history.
+    """
+    student = get_object_or_404(Student, id=student_id)
+    
+    if request.method == "POST":
+        form = EditStudentForm(request.POST, instance=student)
+        
+        if form.is_valid():
+            try:
+                # Track what fields changed
+                original_values = {}
+                for field in form.changed_data:
+                    original_values[field] = getattr(student, field)
+                
+                updated_student = form.save()
+                
+                # Log the changes
+                log_audit_event(
+                    user=request.user,
+                    action="STUDENT_UPDATED",
+                    ip_address=get_client_ip(request),
+                    details={
+                        "student_id": student.id,
+                        "student_name": student.name,
+                        "changed_fields": form.changed_data,
+                        "original_values": original_values,
+                    },
+                )
+                
+                messages.success(
+                    request,
+                    f"Successfully updated {updated_student.name}'s information",
+                )
+                
+                # Clear dashboard cache
+                clear_dashboard_cache()
+                
+                return redirect("dissmissal:student_details", student_id=student.id)
+                
+            except Exception as e:
+                messages.error(
+                    request, 
+                    "An error occurred while updating the student. Please try again."
+                )
+                audit_logger.error(
+                    f"Student update error: {str(e)}",
+                    extra={
+                        "user": request.user.username,
+                        "student_id": student.id,
+                        "ip_address": get_client_ip(request),
+                    },
+                )
+    else:
+        form = EditStudentForm(instance=student)
+    
+    # Get student's pickup history
+    pickup_events = student.pickup_events.select_related("staff_member").order_by("-timestamp")[:20]
+    
+    context = {
+        "form": form,
+        "student": student,
+        "pickup_events": pickup_events,
+        "page_title": f"Student Details - {student.name}",
+    }
+    
+    return render(request, "dissmissal/student_details.html", context)

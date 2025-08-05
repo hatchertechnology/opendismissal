@@ -351,6 +351,90 @@ class QuickActionForm(forms.Form):
         return cleaned_data
 
 
+class EditStudentForm(forms.ModelForm):
+    """
+    Form for editing existing student information.
+    Allows updating name, grade, teacher, and status.
+    """
+
+    class Meta:
+        model = Student
+        fields = ["name", "grade", "teacher", "is_active"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Enter full student name",
+                    "maxlength": 100,
+                }
+            ),
+            "grade": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g., 3rd, 4th, 5th",
+                    "maxlength": 20,
+                }
+            ),
+            "teacher": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Enter teacher name",
+                    "maxlength": 100,
+                }
+            ),
+            "is_active": forms.CheckboxInput(
+                attrs={
+                    "class": "form-check-input",
+                }
+            ),
+        }
+        help_texts = {
+            "name": "Enter the student's full name as it should appear in the system",
+            "grade": "Enter the student's current grade level",
+            "teacher": "Enter the homeroom teacher's name",
+            "is_active": "Uncheck to deactivate student from dismissal system",
+        }
+
+    def clean_name(self):
+        """Validate and format student name"""
+        name = self.cleaned_data["name"].strip()
+
+        if len(name) < 2:
+            raise ValidationError("Student name must be at least 2 characters long.")
+
+        if len(name) > 100:
+            raise ValidationError("Student name cannot exceed 100 characters.")
+
+        # Check for duplicate names (excluding current student)
+        existing = Student.objects.filter(name__iexact=name, is_active=True)
+        if self.instance.pk:
+            existing = existing.exclude(pk=self.instance.pk)
+        
+        if existing.exists():
+            # Don't raise error, but could add a warning message
+            pass
+
+        return name.title()  # Proper case formatting
+
+    def clean_grade(self):
+        """Validate grade format"""
+        grade = self.cleaned_data["grade"].strip()
+
+        if not grade:
+            raise ValidationError("Grade level is required.")
+
+        return grade
+
+    def clean_teacher(self):
+        """Validate teacher name"""
+        teacher = self.cleaned_data["teacher"].strip()
+
+        if not teacher:
+            raise ValidationError("Teacher name is required.")
+
+        return teacher.title()  # Proper case formatting
+
+
 class BulkActionForm(forms.Form):
     """
     Form for bulk actions on multiple students.

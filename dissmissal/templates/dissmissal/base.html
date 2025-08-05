@@ -121,6 +121,33 @@
                                 Complete Pickup
                             </a>
                         </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name in 'add_student,student_details' %}active{% endif %}" 
+                               href="#" 
+                               id="studentsDropdown" 
+                               role="button" 
+                               data-bs-toggle="dropdown" 
+                               aria-expanded="false">
+                                <i class="bi bi-people me-1"></i>
+                                Students
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="studentsDropdown">
+                                <li>
+                                    <a class="dropdown-item {% if request.resolver_match.url_name == 'add_student' %}active{% endif %}" 
+                                       href="{% url 'dissmissal:add_student' %}">
+                                        <i class="bi bi-person-plus me-2"></i>
+                                        Add New Student
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'dissmissal:dashboard' %}">
+                                        <i class="bi bi-list me-2"></i>
+                                        View All Students
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
                     </ul>
                     <!-- User info and logout -->
                     <div class="navbar-nav">
@@ -177,7 +204,7 @@
                         <small class="text-muted">
                             OpenDismissal - Secure Student Dismissal Management
                             <br>
-                            <small>Author: Nathan Clarke</small>
+                            <small>Author: Kerry Hatcher</small>
                         </small>
                     </div>
                     <div class="col-md-6 text-md-end">

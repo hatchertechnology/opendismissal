@@ -1,7 +1,7 @@
 /**
  * Service Worker for OpenDismissal
  * Provides offline functionality and caching for improved mobile experience
- * Author: Nathan Clarke
+ * Author: Kerry Hatcher
  */
 
 const CACHE_VERSION = 'v1.2';

@@ -1,7 +1,7 @@
 /**
  * OpenDismissal Main JavaScript
  * Mobile-first interactive functionality for school dismissal management
- * Author: Nathan Clarke
+ * Author: Kerry Hatcher
  */
 
 // Global utilities and configuration

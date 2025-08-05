@@ -38,6 +38,15 @@
                             {% endif %}
                         {% endfor %}
                     {% endif %}
+                    
+                    {% if form.dismissal_code.value %}
+                        <div class="alert alert-info alert-dismissible fade show" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Quick Entry:</strong> The dismissal code has been pre-filled from the dashboard. 
+                            Verify the code is correct and click "Log Parent Arrival" to proceed.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endif %}
                     <form method="post" id="parent-arrival-form">
                         {% csrf_token %}
                         <div class="mb-4">
@@ -167,6 +176,11 @@
                     clearValidationFeedback();
                 }
             });
+            
+            // If the form is pre-populated, validate the code immediately
+            if (codeInput.value.trim().length >= 3) {
+                setTimeout(() => validateCode(codeInput.value.trim().toUpperCase()), 300);
+            }
             
             function validateCode(code) {
                 if (code === lastValidatedCode) return;

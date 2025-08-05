@@ -1,0 +1,10 @@
+{
+	"servers": {
+		"chrome": {
+			"type": "stdio",
+			"command": "npx",
+			"args": ["@browsermcp/mcp@latest"]
+		}
+	},
+	"inputs": []
+}

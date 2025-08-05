@@ -17,6 +17,11 @@
                     <i class="bi bi-person-plus me-1"></i>
                     Log Parent Arrival
                 </a>
+                <a href="{% url 'dissmissal:add_student' %}"
+                   class="btn btn-success btn-mobile">
+                    <i class="bi bi-person-fill-add me-1"></i>
+                    Add Student
+                </a>
                 <button type="button" 
                         class="btn btn-warning btn-mobile" 
                         id="reset-all-btn"
@@ -176,7 +181,12 @@
                                 <tr data-student-id="{{ student.id }}"
                                     class="{% if student.current_status == 'PARENT_ARRIVED' %}table-warning{% elif student.current_status == 'PICKED_UP' %}table-success{% endif %}">
                                     <td>
-                                        <div class="fw-medium">{{ student.name }}</div>
+                                        <div class="fw-medium">
+                                            <a href="{% url 'dissmissal:student_details' student.id %}" 
+                                               class="text-decoration-none">
+                                                {{ student.name }}
+                                            </a>
+                                        </div>
                                         <div class="small text-muted d-md-none">{{ student.grade }} - {{ student.teacher }}</div>
                                     </td>
                                     <td class="d-none d-md-table-cell">{{ student.grade }}</td>
@@ -206,7 +216,7 @@
                                                     <span class="d-none d-sm-inline">Complete</span>
                                                 </button>
                                             {% elif student.current_status == 'WAITING' %}
-                                                <a href="{% url 'dissmissal:parent_arrival' %}"
+                                                <a href="{% url 'dissmissal:parent_arrival_with_code' student.dismissal_code %}"
                                                    class="btn btn-primary btn-sm">
                                                     <i class="bi bi-person-plus me-1"></i>
                                                     <span class="d-none d-sm-inline">Log Arrival</span>
@@ -217,6 +227,12 @@
                                                     Complete
                                                 </span>
                                             {% endif %}
+                                            <a href="{% url 'dissmissal:student_details' student.id %}"
+                                               class="btn btn-outline-secondary btn-sm"
+                                               title="View student details">
+                                                <i class="bi bi-eye"></i>
+                                                <span class="d-none d-md-inline ms-1">Details</span>
+                                            </a>
                                         </div>
                                     </td>
                                 </tr>
@@ -475,7 +491,7 @@
                 `;
             } else if (student.current_status === 'WAITING') {
                 btnGroup.innerHTML = `
-                    <a href="{% url 'dissmissal:parent_arrival' %}"
+                    <a href="/dissmissal/arrival/${student.dismissal_code}/"
                        class="btn btn-primary btn-sm">
                         <i class="bi bi-person-plus me-1"></i>
                         <span class="d-none d-sm-inline">Log Arrival</span>

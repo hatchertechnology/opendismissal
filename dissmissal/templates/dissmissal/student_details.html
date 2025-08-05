@@ -1,0 +1,303 @@
+{% extends 'dissmissal/base.html' %}
+{% load static %}
+
+{% block title %}{{ student.name }} - Details{% endblock %}
+
+{% block page_header %}
+    <div class="row mb-3">
+        <div class="col">
+            <h1 class="h2 mb-0">
+                <i class="bi bi-person-badge me-2"></i>
+                {{ student.name }}
+            </h1>
+            <p class="text-muted mb-0">Student Details & History</p>
+        </div>
+        <div class="col-auto">
+            <div class="btn-group" role="group">
+                <a href="{% url 'dissmissal:dashboard' %}" 
+                   class="btn btn-outline-secondary btn-mobile">
+                    <i class="bi bi-arrow-left me-1"></i>
+                    Back to Dashboard
+                </a>
+                {% if student.current_status == 'PARENT_ARRIVED' %}
+                    <a href="{% url 'dissmissal:student_pickup_specific' student.id %}" 
+                       class="btn btn-success btn-mobile">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Complete Pickup
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <!-- Student Information Card -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-fill me-2"></i>
+                        Student Information
+                    </h5>
+                    <span class="badge 
+                        {% if student.current_status == 'WAITING' %}bg-warning text-dark
+                        {% elif student.current_status == 'PARENT_ARRIVED' %}bg-info
+                        {% elif student.current_status == 'PICKED_UP' %}bg-success
+                        {% else %}bg-secondary{% endif %}">
+                        {{ student.get_current_status_display }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <!-- Student Name Field -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">
+                                    <strong>Student Name</strong>
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.name.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Grade Field -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.grade.id_for_label }}" class="form-label">
+                                    <strong>Grade Level</strong>
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.grade }}
+                                {% if form.grade.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.grade.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Teacher Field -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.teacher.id_for_label }}" class="form-label">
+                                    <strong>Homeroom Teacher</strong>
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.teacher }}
+                                {% if form.teacher.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.teacher.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Active Status Field -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">
+                                    <strong>Status</strong>
+                                </label>
+                                <div class="form-check">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        Active in dismissal system
+                                    </label>
+                                </div>
+                                {% if form.is_active.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.is_active.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                {% if form.is_active.help_text %}
+                                    <div class="form-text">{{ form.is_active.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary btn-mobile">
+                                <i class="bi bi-save me-1"></i>
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Quick Info & Actions -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Quick Info
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-6">Dismissal Code:</dt>
+                        <dd class="col-sm-6">
+                            <code class="user-select-all">{{ student.dismissal_code }}</code>
+                            <button class="btn btn-sm btn-outline-secondary ms-1" 
+                                    onclick="copyToClipboard('{{ student.dismissal_code }}')"
+                                    title="Copy to clipboard">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </dd>
+                        
+                        <dt class="col-sm-6">Student ID:</dt>
+                        <dd class="col-sm-6">#{{ student.id }}</dd>
+                        
+                        <dt class="col-sm-6">Current Status:</dt>
+                        <dd class="col-sm-6">
+                            <span class="badge 
+                                {% if student.current_status == 'WAITING' %}bg-warning text-dark
+                                {% elif student.current_status == 'PARENT_ARRIVED' %}bg-info
+                                {% elif student.current_status == 'PICKED_UP' %}bg-success
+                                {% else %}bg-secondary{% endif %}">
+                                {{ student.get_current_status_display }}
+                            </span>
+                        </dd>
+                        
+                        <dt class="col-sm-6">Last Updated:</dt>
+                        <dd class="col-sm-6">{{ student.status_updated_at|date:"M d, Y g:i A" }}</dd>
+                        
+                        <dt class="col-sm-6">Added:</dt>
+                        <dd class="col-sm-6">{{ student.created_at|date:"M d, Y" }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pickup History -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Pickup History
+                        <span class="badge bg-secondary ms-2">{{ pickup_events|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if pickup_events %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Event Type</th>
+                                        <th>Staff Member</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for event in pickup_events %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{{ event.timestamp|date:"M d, Y" }}</div>
+                                                <small class="text-muted">{{ event.timestamp|date:"g:i A" }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if event.event_type == 'PARENT_ARRIVED' %}bg-info
+                                                    {% elif event.event_type == 'STUDENT_PICKED_UP' %}bg-success
+                                                    {% elif event.event_type == 'CANCELLED' %}bg-warning text-dark
+                                                    {% else %}bg-secondary{% endif %}">
+                                                    {{ event.get_event_type_display }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div>{{ event.staff_member.get_full_name|default:event.staff_member.username }}</div>
+                                                <small class="text-muted">{{ event.staff_member.username }}</small>
+                                            </td>
+                                            <td>
+                                                {% if event.notes %}
+                                                    {{ event.notes|truncatewords:10 }}
+                                                {% else %}
+                                                    <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-clock-history display-1 text-muted"></i>
+                            <h6 class="mt-2 text-muted">No pickup history yet</h6>
+                            <p class="text-muted mb-0">Pickup events will appear here once they occur.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Copy to clipboard functionality
+    window.copyToClipboard = function(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                showMessage('Dismissal code copied to clipboard!', 'success', 2000);
+            });
+        } else {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showMessage('Dismissal code copied to clipboard!', 'success', 2000);
+            } catch (err) {
+                showMessage('Failed to copy to clipboard', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+    };
+    
+    // Form submission handling
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+                submitBtn.disabled = true;
+                
+                // Re-enable button after timeout in case of errors
+                setTimeout(() => {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }, 10000);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
