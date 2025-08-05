@@ -575,6 +575,20 @@ def greeter_submit_api(request):
                     'message': 'Invalid student code'
                 })
                 
+    except (ValueError, TypeError) as e:
+        # Handle data validation errors specifically
+        audit_logger.warning(
+            f"Mobile greeter validation error: {str(e)}",
+            extra={
+                "user": request.user.username,
+                "ip_address": get_client_ip(request),
+                "code": code if 'code' in locals() else 'unknown',
+            },
+        )
+        return JsonResponse({
+            'success': False, 
+            'message': 'Invalid request data. Please try again.'
+        })
     except Exception as e:
         audit_logger.error(
             f"Mobile greeter API error: {str(e)}",
@@ -698,6 +712,20 @@ def complete_pickup_api(request):
                     'message': 'Student not found or not ready for pickup'
                 })
                 
+    except (ValueError, TypeError) as e:
+        # Handle data validation errors specifically
+        audit_logger.warning(
+            f"Mobile pickup validation error: {str(e)}",
+            extra={
+                "user": request.user.username,
+                "ip_address": get_client_ip(request),
+                "student_id": student_id if 'student_id' in locals() else 'unknown',
+            },
+        )
+        return JsonResponse({
+            'success': False, 
+            'message': 'Invalid request data. Please try again.'
+        })
     except Exception as e:
         audit_logger.error(
             f"Mobile pickup completion API error: {str(e)}",
