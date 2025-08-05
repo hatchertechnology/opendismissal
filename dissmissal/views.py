@@ -62,7 +62,7 @@ def dashboard_view(request):
 
     if not dashboard_data:
         # Optimized query to avoid N+1 problems
-        students_query = Student.objects.select_related().filter(is_active=True)
+        students_query = Student.objects.filter(is_active=True)
 
         # Apply filters
         if status_filter != "all":

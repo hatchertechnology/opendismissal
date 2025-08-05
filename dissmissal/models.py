@@ -37,6 +37,8 @@ class Student(models.Model):
     """
     Student model with embedded dismissal code for simplified architecture.
     Includes status tracking optimization for dashboard performance.
+    Tracks student dismissal status using STATUS_CHOICES for efficient dashboard queries.
+    Enhanced validation methods ensure data integrity for dismissal codes and status updates.
     """
 
     STATUS_CHOICES = [

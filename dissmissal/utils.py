@@ -302,18 +302,24 @@ def format_time_ago(timestamp):
     return "Just now"
 
 
+# Cache the optimized queryset configuration to avoid repeated construction
+_OPTIMIZED_QUERYSET_CONFIG = None
+
 def get_student_query_optimized():
     """
     Get optimized queryset for students with proper relations.
+    Uses cached configuration to avoid repeated query construction.
 
     Returns:
         QuerySet: Optimized Student queryset
     """
+    global _OPTIMIZED_QUERYSET_CONFIG
     from .models import Student, PickupEvent
 
-    return Student.objects.select_related().prefetch_related(
-        models.Prefetch(
+    if _OPTIMIZED_QUERYSET_CONFIG is None:
+        _OPTIMIZED_QUERYSET_CONFIG = models.Prefetch(
             "pickup_events",
             queryset=PickupEvent.objects.select_related("staff_member").order_by("-timestamp"),
         )
-    )
+
+    return Student.objects.prefetch_related(_OPTIMIZED_QUERYSET_CONFIG)
