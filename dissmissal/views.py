@@ -532,3 +532,47 @@ def student_details_view(request, student_id):
     }
     
     return render(request, "dissmissal/student_details.html", context)
+
+
+# Mobile Interface Views
+
+@login_required
+def greeter_mobile_view(request):
+    """
+    Ultra-simple mobile greeter interface for parent arrival check-in.
+    Designed for outdoor use with large touch targets and minimal UI.
+    """
+    # Log mobile interface access
+    log_audit_event(
+        user=request.user,
+        action="MOBILE_GREETER_ACCESS",
+        ip_address=get_client_ip(request),
+        details={"timestamp": timezone.now().isoformat()},
+    )
+    
+    context = {
+        'page_title': 'Parent Check-in',
+        'user_name': request.user.get_full_name() or request.user.username,
+    }
+    return render(request, 'dissmissal/greeter.html', context)
+
+
+@login_required  
+def releaser_mobile_view(request):
+    """
+    Ultra-simple mobile releaser interface for student pickup completion.
+    Shows queue of students ready for pickup with tap-to-complete.
+    """
+    # Log mobile interface access
+    log_audit_event(
+        user=request.user,
+        action="MOBILE_RELEASER_ACCESS",
+        ip_address=get_client_ip(request),
+        details={"timestamp": timezone.now().isoformat()},
+    )
+    
+    context = {
+        'page_title': 'Student Release',
+        'user_name': request.user.get_full_name() or request.user.username,
+    }
+    return render(request, 'dissmissal/releaser.html', context)

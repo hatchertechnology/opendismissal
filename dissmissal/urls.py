@@ -31,6 +31,10 @@ urlpatterns = [
         views.student_details_view,
         name="student_details"
     ),
+    
+    # Mobile interface views
+    path("greeter/", views.greeter_mobile_view, name="greeter_mobile"),
+    path("releaser/", views.releaser_mobile_view, name="releaser_mobile"),
     # API endpoints for AJAX functionality
     path("api/status/", api.dashboard_status_api, name="dashboard_status_api"),
     path(
@@ -47,4 +51,9 @@ urlpatterns = [
     path("api/search/", api.student_search_api, name="student_search_api"),
     path("api/bulk-action/", api.bulk_action_api, name="bulk_action_api"),
     path("api/reset-all/", api.reset_all_api, name="reset_all_api"),
+    
+    # Mobile interface API endpoints
+    path("api/greeter-submit/", api.greeter_submit_api, name="greeter_submit_api"),
+    path("api/releaser-data/", api.releaser_data_api, name="releaser_data_api"),
+    path("api/complete-pickup/", api.complete_pickup_api, name="complete_pickup_api"),
 ]
