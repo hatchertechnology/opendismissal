@@ -1,0 +1,228 @@
+{% extends 'dissmissal/base.html' %}
+{% load static %}
+{% block title %}Parent Arrival{% endblock %}
+{% block page_actions %}
+    <div class="col-auto">
+        <a href="{% url 'dissmissal:dashboard' %}"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>
+            Back to Dashboard
+        </a>
+    </div>
+{% endblock %}
+{% block content %}
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Parent Arrival Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-plus me-2"></i>
+                        Log Parent Arrival
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="parent-arrival-form">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label for="{{ form.dismissal_code.id_for_label }}" class="form-label fs-5">
+                                <i class="bi bi-key me-2"></i>
+                                Dismissal Code
+                            </label>
+                            {{ form.dismissal_code }}
+                            {% if form.dismissal_code.help_text %}<div class="form-text">{{ form.dismissal_code.help_text }}</div>{% endif %}
+                            {% if form.dismissal_code.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.dismissal_code.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <!-- Real-time validation feedback -->
+                            <div id="code-validation-feedback" class="mt-2"></div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                <i class="bi bi-chat-text me-2"></i>
+                                Notes (Optional)
+                            </label>
+                            {{ form.notes }}
+                            {% if form.notes.help_text %}<div class="form-text">{{ form.notes.help_text }}</div>{% endif %}
+                        </div>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit"
+                                    class="btn btn-primary btn-lg btn-mobile"
+                                    id="submit-btn">
+                                <i class="bi bi-person-check me-2"></i>
+                                Log Parent Arrival
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <!-- Recent Arrivals -->
+            {% if recent_arrivals %}
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="bi bi-clock-history me-2"></i>
+                            Recent Arrivals
+                        </h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for event in recent_arrivals %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">{{ event.student.name }}</h6>
+                                            <p class="mb-1 small text-muted">{{ event.student.grade }} - {{ event.student.teacher }}</p>
+                                            <small class="text-muted">
+                                                <i class="bi bi-person me-1"></i>
+                                                {{ event.staff_member.get_full_name|default:event.staff_member.username }}
+                                            </small>
+                                        </div>
+                                        <small class="text-muted">{{ event.timestamp|timesince }} ago</small>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            <!-- Help Information -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Instructions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li class="mb-2">Ask the parent for their dismissal code</li>
+                        <li class="mb-2">Enter the code in the field above</li>
+                        <li class="mb-2">The system will validate the code automatically</li>
+                        <li class="mb-0">Click "Log Parent Arrival" to confirm</li>
+                    </ol>
+                    <hr>
+                    <h6 class="small fw-bold text-muted mb-2">Code Format:</h6>
+                    <ul class="small mb-0">
+                        <li>6-8 characters long</li>
+                        <li>Letters and numbers only</li>
+                        <li>Case insensitive</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block extra_js %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const codeInput = document.getElementById('{{ form.dismissal_code.id_for_label }}');
+            const feedbackDiv = document.getElementById('code-validation-feedback');
+            const submitBtn = document.getElementById('submit-btn');
+            const form = document.getElementById('parent-arrival-form');
+            
+            let validationTimeout;
+            let lastValidatedCode = '';
+            
+            // Real-time code validation
+            codeInput.addEventListener('input', function() {
+                const code = this.value.trim().toUpperCase();
+                this.value = code; // Force uppercase
+                
+                clearTimeout(validationTimeout);
+                
+                if (code.length >= 3 && code !== lastValidatedCode) {
+                    validationTimeout = setTimeout(() => validateCode(code), 500);
+                } else if (code.length < 3) {
+                    clearValidationFeedback();
+                }
+            });
+            
+            function validateCode(code) {
+                if (code === lastValidatedCode) return;
+                
+                showValidationLoading();
+                
+                fetch(window.OpenDismissalConfig.apiEndpoints.validateCode, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `code=${encodeURIComponent(code)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    lastValidatedCode = code;
+                    
+                    if (data.valid) {
+                        showValidationSuccess(data.student);
+                    } else {
+                        showValidationError(data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Validation failed:', error);
+                    showValidationError('Unable to validate code. Please try again.');
+                });
+            }
+            
+            function showValidationLoading() {
+                feedbackDiv.innerHTML = `
+                    <div class="d-flex align-items-center text-muted">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Validating code...
+                    </div>
+                `;
+            }
+            
+            function showValidationSuccess(student) {
+                feedbackDiv.innerHTML = `
+                    <div class="alert alert-success py-2 mb-0">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <strong>Valid Code</strong> - ${student.name} (${student.grade}, ${student.teacher})
+                        <br>
+                        <small>Current Status: ${student.status_display}</small>
+                    </div>
+                `;
+                
+                codeInput.classList.remove('is-invalid');
+                codeInput.classList.add('is-valid');
+            }
+            
+            function showValidationError(error) {
+                feedbackDiv.innerHTML = `
+                    <div class="alert alert-danger py-2 mb-0">
+                        <i class="bi bi-x-circle me-2"></i>
+                        ${error}
+                    </div>
+                `;
+                
+                codeInput.classList.remove('is-valid');
+                codeInput.classList.add('is-invalid');
+            }
+            
+            function clearValidationFeedback() {
+                feedbackDiv.innerHTML = '';
+                codeInput.classList.remove('is-valid', 'is-invalid');
+                lastValidatedCode = '';
+            }
+            
+            // Form submission handling
+            form.addEventListener('submit', function(e) {
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                submitBtn.disabled = true;
+            });
+            
+            // Focus on code input for quick entry
+            codeInput.focus();
+        });
+    </script>
+{% endblock %}

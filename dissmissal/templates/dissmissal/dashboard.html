@@ -1,0 +1,430 @@
+{% extends 'dissmissal/base.html' %}
+{% load static %}
+{% block title %}Dashboard{% endblock %}
+{% block page_header %}
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 mb-2">
+                <i class="bi bi-speedometer2 me-2"></i>
+                Dismissal Dashboard
+            </h1>
+            <p class="text-muted mb-0">Real-time view of student dismissal status</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'dissmissal:parent_arrival' %}"
+               class="btn btn-primary btn-mobile">
+                <i class="bi bi-person-plus me-1"></i>
+                Log Parent Arrival
+            </a>
+        </div>
+    </div>
+{% endblock %}
+{% block content %}
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="stats-cards">
+        <div class="col-6 col-lg-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-4 fw-bold" id="total-count">{{ stats.total_active|default:0 }}</div>
+                            <div class="small">Total Active</div>
+                        </div>
+                        <i class="bi bi-people fs-1 opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3 mb-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-4 fw-bold" id="waiting-count">{{ stats.waiting|default:0 }}</div>
+                            <div class="small">Waiting</div>
+                        </div>
+                        <i class="bi bi-clock fs-1 opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-4 fw-bold" id="arrived-count">{{ stats.parent_arrived|default:0 }}</div>
+                            <div class="small">Parent Arrived</div>
+                        </div>
+                        <i class="bi bi-person-check fs-1 opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-4 fw-bold" id="picked-up-count">{{ stats.picked_up|default:0 }}</div>
+                            <div class="small">Picked Up</div>
+                        </div>
+                        <i class="bi bi-check-circle fs-1 opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Filters and Search -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3" id="filter-form">
+                <div class="col-md-3">
+                    <label for="status-filter" class="form-label">Status Filter</label>
+                    <select name="status" id="status-filter" class="form-select">
+                        <option value="all"
+                                {% if current_filters.status == 'all' %}selected{% endif %}>All Students</option>
+                        <option value="WAITING"
+                                {% if current_filters.status == 'WAITING' %}selected{% endif %}>
+                            Waiting for Parent
+                        </option>
+                        <option value="PARENT_ARRIVED"
+                                {% if current_filters.status == 'PARENT_ARRIVED' %}selected{% endif %}>
+                            Parent Has Arrived
+                        </option>
+                        <option value="PICKED_UP"
+                                {% if current_filters.status == 'PICKED_UP' %}selected{% endif %}>Picked Up</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="grade-filter" class="form-label">Grade Filter</label>
+                    <select name="grade" id="grade-filter" class="form-select">
+                        <option value="all"
+                                {% if current_filters.grade == 'all' %}selected{% endif %}>All Grades</option>
+                        {% for grade in grades %}
+                            <option value="{{ grade }}"
+                                    {% if current_filters.grade == grade %}selected{% endif %}>{{ grade }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="search-input" class="form-label">Search</label>
+                    <input type="text"
+                           name="search"
+                           id="search-input"
+                           class="form-control"
+                           placeholder="Name, code, or teacher..."
+                           value="{{ current_filters.search }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-search me-1"></i>
+                            Filter
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Student List -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-list-ul me-2"></i>
+                Student Status
+            </h5>
+            <div class="d-flex align-items-center">
+                <button id="refresh-btn"
+                        class="btn btn-sm btn-outline-secondary me-2"
+                        onclick="refreshDashboard()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                    Refresh
+                </button>
+                <small class="text-muted">
+                    Auto-refresh: <span id="refresh-countdown">30</span>s
+                </small>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if students %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="students-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Student</th>
+                                <th scope="col" class="d-none d-md-table-cell">Grade</th>
+                                <th scope="col" class="d-none d-lg-table-cell">Teacher</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Code</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                                <tr data-student-id="{{ student.id }}"
+                                    class="{% if student.current_status == 'PARENT_ARRIVED' %}table-warning{% elif student.current_status == 'PICKED_UP' %}table-success{% endif %}">
+                                    <td>
+                                        <div class="fw-medium">{{ student.name }}</div>
+                                        <div class="small text-muted d-md-none">{{ student.grade }} - {{ student.teacher }}</div>
+                                    </td>
+                                    <td class="d-none d-md-table-cell">{{ student.grade }}</td>
+                                    <td class="d-none d-lg-table-cell">{{ student.teacher }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if student.current_status == 'WAITING' %}warning{% elif student.current_status == 'PARENT_ARRIVED' %}info{% else %}success{% endif %}">
+                                            {% if student.current_status == 'WAITING' %}
+                                                <i class="bi bi-clock me-1"></i>Waiting
+                                            {% elif student.current_status == 'PARENT_ARRIVED' %}
+                                                <i class="bi bi-person-check me-1"></i>Parent Here
+                                            {% else %}
+                                                <i class="bi bi-check-circle me-1"></i>Picked Up
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <code class="user-select-all">{{ student.dismissal_code }}</code>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group-sm" role="group">
+                                            {% if student.current_status == 'PARENT_ARRIVED' %}
+                                                <a href="{% url 'dissmissal:student_pickup' student.id %}"
+                                                   class="btn btn-success btn-sm">
+                                                    <i class="bi bi-check-circle me-1"></i>
+                                                    <span class="d-none d-sm-inline">Complete</span>
+                                                </a>
+                                            {% elif student.current_status == 'WAITING' %}
+                                                <a href="{% url 'dissmissal:parent_arrival' %}"
+                                                   class="btn btn-primary btn-sm">
+                                                    <i class="bi bi-person-plus me-1"></i>
+                                                    <span class="d-none d-sm-inline">Log Arrival</span>
+                                                </a>
+                                            {% else %}
+                                                <span class="text-success small">
+                                                    <i class="bi bi-check-circle me-1"></i>
+                                                    Complete
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                    <div class="card-footer">
+                        <nav aria-label="Student list pagination">
+                            <ul class="pagination pagination-sm justify-content-center mb-0">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page=1{% if current_filters.status != 'all' %}&status={{ current_filters.status }}{% endif %}{% if current_filters.grade != 'all' %}&grade={{ current_filters.grade }}{% endif %}{% if current_filters.search %}&search={{ current_filters.search }}{% endif %}">
+                                            <i class="bi bi-chevron-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page={{ page_obj.previous_page_number }}{% if current_filters.status != 'all' %}&status={{ current_filters.status }}{% endif %}{% if current_filters.grade != 'all' %}&grade={{ current_filters.grade }}{% endif %}{% if current_filters.search %}&search={{ current_filters.search }}{% endif %}">
+                                            <i class="bi bi-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                <li class="page-item active">
+                                    <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                                </li>
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page={{ page_obj.next_page_number }}{% if current_filters.status != 'all' %}&status={{ current_filters.status }}{% endif %}{% if current_filters.grade != 'all' %}&grade={{ current_filters.grade }}{% endif %}{% if current_filters.search %}&search={{ current_filters.search }}{% endif %}">
+                                            <i class="bi bi-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page={{ page_obj.paginator.num_pages }}{% if current_filters.status != 'all' %}&status={{ current_filters.status }}{% endif %}{% if current_filters.grade != 'all' %}&grade={{ current_filters.grade }}{% endif %}{% if current_filters.search %}&search={{ current_filters.search }}{% endif %}">
+                                            <i class="bi bi-chevron-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <h4 class="mt-3">No Students Found</h4>
+                    <p class="text-muted">
+                        {% if current_filters.search or current_filters.status != 'all' or current_filters.grade != 'all' %}
+                            Try adjusting your filters or search terms.
+                        {% else %}
+                            No active students in the system. Add students through the admin panel.
+                        {% endif %}
+                    </p>
+                    {% if current_filters.search or current_filters.status != 'all' or current_filters.grade != 'all' %}
+                        <a href="{% url 'dissmissal:dashboard' %}"
+                           class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                            Clear Filters
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+{% block extra_js %}
+    <script>
+        // Dashboard-specific JavaScript
+        let refreshTimer;
+        let countdownTimer;
+        let countdownSeconds = 30;
+        
+        // Auto-refresh functionality
+        function startRefreshCountdown() {
+            countdownSeconds = 30;
+            countdownTimer = setInterval(function() {
+                countdownSeconds--;
+                document.getElementById('refresh-countdown').textContent = countdownSeconds;
+                
+                if (countdownSeconds <= 0) {
+                    refreshDashboard();
+                }
+            }, 1000);
+        }
+        
+        function refreshDashboard() {
+            clearInterval(countdownTimer);
+            
+            const refreshBtn = document.getElementById('refresh-btn');
+            const icon = refreshBtn.querySelector('i');
+            
+            // Show loading state
+            icon.className = 'bi bi-arrow-clockwise spin me-1';
+            refreshBtn.disabled = true;
+            
+            // Error handling for missing config or endpoint
+            if (
+                !window.OpenDismissalConfig ||
+                !window.OpenDismissalConfig.apiEndpoints ||
+                !window.OpenDismissalConfig.apiEndpoints.status
+            ) {
+                console.error('OpenDismissalConfig or status endpoint is not defined.');
+                showMessage('Dashboard configuration error: Unable to refresh data.', 'error');
+                // Reset refresh button
+                icon.className = 'bi bi-arrow-clockwise me-1';
+                refreshBtn.disabled = false;
+                startRefreshCountdown();
+                return;
+            }
+            
+            fetch(window.OpenDismissalConfig.apiEndpoints.status, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateDashboardData(data);
+                
+                // Reset refresh button
+                icon.className = 'bi bi-arrow-clockwise me-1';
+                refreshBtn.disabled = false;
+                
+                // Update last updated time
+                const now = new Date();
+                document.getElementById('last-update-time').textContent = 
+                    now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                
+                startRefreshCountdown();
+            })
+            .catch(error => {
+                console.error('Refresh failed:', error);
+                showMessage('Failed to refresh dashboard data', 'error');
+                
+                // Reset refresh button
+                icon.className = 'bi bi-arrow-clockwise me-1';
+                refreshBtn.disabled = false;
+                startRefreshCountdown();
+            });
+        }
+        
+        function updateDashboardData(data) {
+            // Update statistics cards
+            if (data.stats) {
+                document.getElementById('total-count').textContent = data.stats.total_active;
+                document.getElementById('waiting-count').textContent = data.stats.waiting;
+                document.getElementById('arrived-count').textContent = data.stats.parent_arrived;
+                document.getElementById('picked-up-count').textContent = data.stats.picked_up;
+            }
+            
+            // Update student table if needed
+            if (data.students) {
+                updateStudentTable(data.students);
+            }
+        }
+        
+        function updateStudentTable(students) {
+            const tbody = document.querySelector('#students-table tbody');
+            if (!tbody) return;
+            
+            // This is a simplified update - in practice you might want to 
+            // be more surgical about which rows to update
+            students.forEach(student => {
+                const row = document.querySelector(`tr[data-student-id="${student.id}"]`);
+                if (row) {
+                    // Update status badge
+                    const statusCell = row.querySelector('td:nth-child(4) .badge');
+                    if (statusCell) {
+                        updateStatusBadge(statusCell, student.current_status);
+                    }
+                    
+                    // Update actions
+                    const actionsCell = row.querySelector('td:last-child');
+                    if (actionsCell) {
+                        updateActionButtons(actionsCell, student);
+                    }
+                    
+                    // Update row highlighting
+                    row.className = '';
+                    if (student.current_status === 'PARENT_ARRIVED') {
+                        row.classList.add('table-warning');
+                    } else if (student.current_status === 'PICKED_UP') {
+                        row.classList.add('table-success');
+                    }
+                }
+            });
+        }
+        
+        function updateStatusBadge(badgeElement, status) {
+            badgeElement.className = 'badge bg-' + 
+                (status === 'WAITING' ? 'warning' : 
+                 status === 'PARENT_ARRIVED' ? 'info' : 'success');
+            
+            badgeElement.innerHTML = 
+                status === 'WAITING' ? '<i class="bi bi-clock me-1"></i>Waiting' :
+                status === 'PARENT_ARRIVED' ? '<i class="bi bi-person-check me-1"></i>Parent Here' :
+                '<i class="bi bi-check-circle me-1"></i>Picked Up';
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize refresh countdown
+            startRefreshCountdown();
+        });
+        
+        // Filter form auto-submit on mobile
+        document.getElementById('status-filter').addEventListener('change', function() {
+            if (window.innerWidth < 768) {
+                document.getElementById('filter-form').submit();
+            }
+        });
+        
+        document.getElementById('grade-filter').addEventListener('change', function() {
+            if (window.innerWidth < 768) {
+                document.getElementById('filter-form').submit();
+            }
+        });
+    </script>
+{% endblock %}
