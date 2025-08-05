@@ -188,7 +188,7 @@
                                     <td>
                                         <div class="btn-group-sm" role="group">
                                             {% if student.current_status == 'PARENT_ARRIVED' %}
-                                                <a href="{% url 'dissmissal:student_pickup' student.id %}"
+                                                <a href="{% url 'dissmissal:student_pickup_specific' student.id %}"
                                                    class="btn btn-success btn-sm">
                                                     <i class="bi bi-check-circle me-1"></i>
                                                     <span class="d-none d-sm-inline">Complete</span>
