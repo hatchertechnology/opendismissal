@@ -1,5 +1,9 @@
 {
     "cSpell.words": [
         "hatchertechnology"
-    ]
+    ],
+    "sonarlint.connectedMode.project": {
+        "connectionId": "hatchertechnology",
+        "projectKey": "hatchertechnology_opendismissal"
+    }
 }
