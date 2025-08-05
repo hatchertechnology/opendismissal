@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='student',
             name='dismissal_code',
-            field=models.CharField(blank=True, db_index=True, help_text='Unique 3-8 character alphanumeric code for parent verification. Leave blank to auto-generate.', max_length=8, unique=True),
+            field=models.CharField(blank=True, db_index=True, help_text='Unique 1-8 character alphanumeric code for parent verification. Leave blank to auto-generate.', max_length=8, unique=True),
         ),
     ]

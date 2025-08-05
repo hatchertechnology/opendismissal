@@ -332,6 +332,12 @@ def validate_dismissal_code_format(code, allow_empty=False):
         return False, "Dismissal code is required"
 
     code = code.strip().upper()
+    
+    # Check again after stripping in case it was only whitespace
+    if not code:
+        if allow_empty:
+            return True, ""
+        return False, "Dismissal code is required"
 
     if len(code) < 1 or len(code) > 8:
         return False, "Dismissal code must be 1-8 characters long"
