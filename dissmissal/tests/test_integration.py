@@ -6,11 +6,9 @@ from django.test import TestCase, Client, TransactionTestCase
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.core.cache import cache
-from django.db import transaction
 from dissmissal.models import Student, PickupEvent
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
-import threading
 import time
 from unittest.mock import patch
 
@@ -462,9 +460,21 @@ class PerformanceIntegrationTests(TestCase):
         # Create many students for performance testing
         self.students = []
         for i in range(50):
+            # Generate grade suffix based on grade number
+            grade_num = (i % 8) + 1
+            grade_remainder = i % 8
+            if grade_remainder == 0:
+                suffix = 'st'
+            elif grade_remainder == 1:
+                suffix = 'nd'
+            elif grade_remainder == 2:
+                suffix = 'rd'
+            else:
+                suffix = 'th'
+            
             student = Student.objects.create(
                 name=f"Performance Student {i:03d}",
-                grade=f"{(i % 8) + 1}{'st' if (i % 8) == 0 else ('nd' if (i % 8) == 1 else ('rd' if (i % 8) == 2 else 'th'))}",
+                grade=f"{grade_num}{suffix}",
                 teacher=f"Teacher {i % 10}"
             )
             self.students.append(student)

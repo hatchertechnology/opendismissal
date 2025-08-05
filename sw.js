@@ -46,6 +46,134 @@ self.addEventListener('activate', function(event) {
     );
 });
 
+/**
+ * Creates appropriate error responses based on request type and error
+ * @param {string} url - The request URL
+ * @param {Error} error - The error that occurred
+ * @returns {Response} - Appropriate error response
+ */
+function createErrorResponse(url, error) {
+    // Check if this is an application page that needs a user-friendly fallback
+    if (url.includes('/dissmissal/') || url.includes('/admin/')) {
+        const isAdminPage = url.includes('/admin/');
+        const pageType = isAdminPage ? 'Admin' : 'Dismissal';
+        const backgroundColor = isAdminPage ? '#f8f9fa' : '#e3f2fd';
+        const borderColor = isAdminPage ? '#dc3545' : '#2196f3';
+        const iconColor = isAdminPage ? '⚠️' : '🚫';
+        
+        return new Response(
+            createOfflinePageHTML(pageType, backgroundColor, borderColor, iconColor),
+            {
+                status: 503,
+                statusText: 'Service Unavailable',
+                headers: {
+                    'Content-Type': 'text/html',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                },
+            }
+        );
+    }
+    
+    // For API requests, return JSON error
+    if (url.includes('/api/')) {
+        return new Response(
+            JSON.stringify({
+                error: 'Network unavailable',
+                message: 'Unable to connect to the server. Please check your connection.',
+                timestamp: new Date().toISOString()
+            }),
+            {
+                status: 503,
+                statusText: 'Service Unavailable',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                },
+            }
+        );
+    }
+    
+    // For static resources (CSS, JS, images), let them fail naturally
+    if (url.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$/i)) {
+        throw error;
+    }
+    
+    // For all other requests, let them fail naturally
+    throw error;
+}
+
+/**
+ * Creates HTML content for offline pages with customization based on page type
+ * @param {string} pageType - Type of page (Admin, Dismissal, etc.)
+ * @param {string} backgroundColor - Background color for the page
+ * @param {string} borderColor - Border color for the error message
+ * @param {string} icon - Icon to display
+ * @returns {string} - HTML content
+ */
+function createOfflinePageHTML(pageType, backgroundColor, borderColor, icon) {
+    return `<!DOCTYPE html>
+    <html>
+    <head>
+        <title>OpenDismissal ${pageType} - Network Error</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { 
+                font-family: system-ui, -apple-system, sans-serif; 
+                padding: 2rem; 
+                text-align: center; 
+                background-color: ${backgroundColor};
+                margin: 0;
+            }
+            .error-message {
+                max-width: 400px;
+                margin: 2rem auto;
+                padding: 2rem;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border-left: 4px solid ${borderColor};
+            }
+            .icon { font-size: 3rem; margin-bottom: 1rem; }
+            .retry-btn {
+                background: ${borderColor};
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 16px;
+                cursor: pointer;
+                margin-top: 1rem;
+                transition: background-color 0.2s;
+            }
+            .retry-btn:hover { 
+                filter: brightness(0.9);
+            }
+            .page-type {
+                color: ${borderColor};
+                font-weight: bold;
+                margin-bottom: 0.5rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="error-message">
+            <div class="icon">${icon}</div>
+            <div class="page-type">${pageType} Section</div>
+            <h2>Network Error</h2>
+            <p>Unable to connect to OpenDismissal ${pageType}. Please check your internet connection and try again.</p>
+            <p><strong>Note:</strong> This app requires a live connection to ensure data accuracy.</p>
+            <button class="retry-btn" onclick="window.location.reload()">
+                Retry Connection
+            </button>
+        </div>
+    </body>
+    </html>`;
+}
+
 // Fetch event - always use network, never cache
 self.addEventListener('fetch', function(event) {
     // Only handle GET requests
@@ -102,72 +230,7 @@ self.addEventListener('fetch', function(event) {
             }).catch(function(error) {
                 console.error('OpenDismissal Service Worker: Same-origin request failed:', error);
                 
-                // Provide offline fallback only for application pages
-                if (event.request.url.includes('/dissmissal/') || 
-                    event.request.url.includes('/admin/')) {
-                return new Response(
-                    `<!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>OpenDismissal - Network Error</title>
-                        <meta name="viewport" content="width=device-width, initial-scale=1">
-                        <style>
-                            body { 
-                                font-family: system-ui, -apple-system, sans-serif; 
-                                padding: 2rem; 
-                                text-align: center; 
-                                background-color: #f8f9fa;
-                            }
-                            .error-message {
-                                max-width: 400px;
-                                margin: 2rem auto;
-                                padding: 2rem;
-                                background: white;
-                                border-radius: 8px;
-                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                border-left: 4px solid #dc3545;
-                            }
-                            .icon { font-size: 3rem; margin-bottom: 1rem; }
-                            .retry-btn {
-                                background: #0d6efd;
-                                color: white;
-                                border: none;
-                                padding: 12px 24px;
-                                border-radius: 6px;
-                                font-size: 16px;
-                                cursor: pointer;
-                                margin-top: 1rem;
-                            }
-                            .retry-btn:hover { background: #0b5ed7; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="error-message">
-                            <div class="icon">🚫</div>
-                            <h2>Network Error</h2>
-                            <p>Unable to connect to OpenDismissal. Please check your internet connection and try again.</p>
-                            <p><strong>Note:</strong> This app requires a live connection to ensure data accuracy.</p>
-                            <button class="retry-btn" onclick="window.location.reload()">
-                                Retry Connection
-                            </button>
-                        </div>
-                    </body>
-                    </html>`,
-                    {
-                        status: 503,
-                        statusText: 'Service Unavailable',
-                        headers: {
-                            'Content-Type': 'text/html',
-                            'Cache-Control': 'no-cache, no-store, must-revalidate',
-                            'Pragma': 'no-cache',
-                            'Expires': '0'
-                        },
-                    }
-                );
-            }
-            
-                // For other requests, let them fail naturally
-                throw error;
+                return createErrorResponse(event.request.url, error);
             })
         );
     }

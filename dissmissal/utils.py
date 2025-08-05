@@ -81,12 +81,9 @@ def log_dismissal_code_change(user, student, old_code, new_code, ip_address, met
         "student_grade": student.grade,
         "student_teacher": student.teacher,
     }
-    
+
     log_audit_event(
-        user=user,
-        action="DISMISSAL_CODE_CHANGED",
-        ip_address=ip_address,
-        details=details
+        user=user, action="DISMISSAL_CODE_CHANGED", ip_address=ip_address, details=details
     )
 
 
@@ -106,7 +103,7 @@ def get_dashboard_stats(cache_timeout=30):
     # Independent stats caching for better performance
     stats_cache_key = "dashboard_stats_global"
     stats = cache.get(stats_cache_key)
-    
+
     if stats is None:
         today = timezone.now().date()
 
@@ -124,8 +121,12 @@ def get_dashboard_stats(cache_timeout=30):
         # Calculate percentages
         if stats["total_active"] > 0:
             stats["waiting_percent"] = round((stats["waiting"] / stats["total_active"]) * 100, 1)
-            stats["arrived_percent"] = round((stats["parent_arrived"] / stats["total_active"]) * 100, 1)
-            stats["picked_up_percent"] = round((stats["picked_up"] / stats["total_active"]) * 100, 1)
+            stats["arrived_percent"] = round(
+                (stats["parent_arrived"] / stats["total_active"]) * 100, 1
+            )
+            stats["picked_up_percent"] = round(
+                (stats["picked_up"] / stats["total_active"]) * 100, 1
+            )
         else:
             stats["waiting_percent"] = stats["arrived_percent"] = stats["picked_up_percent"] = 0
 
@@ -215,6 +216,47 @@ def get_cache_key(prefix, user_id=None, **kwargs):
     return "_".join(key_parts)
 
 
+def _clear_user_specific_cache(user_id):
+    """
+    Clear cache entries for a specific user.
+
+    Args:
+        user_id: User ID to clear cache for
+    """
+    from .constants import COMMON_DASHBOARD_FILTERS
+
+    for status, grade, search in COMMON_DASHBOARD_FILTERS:
+        cache_key = generate_dashboard_cache_key(user_id, status, grade, search)
+        cache.delete(cache_key)
+
+
+def _clear_all_users_cache():
+    """
+    Clear cache entries for all users using fallback approach.
+    Limited to reasonable number of concurrent users.
+    """
+    from .constants import COMMON_DASHBOARD_FILTERS, MAX_CONCURRENT_USERS_FOR_CACHE
+
+    for user_idx in range(1, MAX_CONCURRENT_USERS_FOR_CACHE + 1):
+        for status, grade, search in COMMON_DASHBOARD_FILTERS:
+            cache_key = generate_dashboard_cache_key(user_idx, status, grade, search)
+            cache.delete(cache_key)
+
+
+def _clear_cache_with_pattern_support(user_id):
+    """
+    Clear cache using pattern deletion when supported.
+
+    Args:
+        user_id: Optional user ID for specific user cache clearing
+    """
+    if user_id:
+        pattern = f"dashboard_user_{user_id}_*"
+        cache.delete_pattern(pattern)
+    else:
+        cache.delete_pattern("dashboard_*")
+
+
 def clear_dashboard_cache(user_id=None):
     """
     Clear dashboard-related cache entries with targeted approach.
@@ -222,46 +264,21 @@ def clear_dashboard_cache(user_id=None):
     Args:
         user_id: Optional user ID to clear specific user cache
     """
+    from .constants import CACHE_PREFIXES
+
     # Always clear the global stats cache when dashboard data changes
-    cache.delete("dashboard_stats_global")
-    
-    # Django's default cache doesn't support delete_pattern
-    # We'll implement a targeted cache clearing mechanism
-    if hasattr(cache, 'delete_pattern'):
-        if user_id:
-            # Clear specific user cache
-            pattern = f"dashboard_user_{user_id}_*"
-            cache.delete_pattern(pattern)
-        else:
-            # Clear all dashboard cache
-            cache.delete_pattern("dashboard_*")
+    cache.delete(CACHE_PREFIXES["DASHBOARD_STATS"])
+
+    # Use pattern deletion if supported, otherwise fallback to targeted approach
+    if hasattr(cache, "delete_pattern"):
+        _clear_cache_with_pattern_support(user_id)
+        return
+
+    # Fallback approach for caches without pattern deletion support
+    if user_id:
+        _clear_user_specific_cache(user_id)
     else:
-        # Targeted fallback - clear common dashboard cache keys instead of cache.clear()
-        if user_id:
-            # Clear common dashboard cache keys for the specific user
-            common_filters = [
-                ("all", "all", ""),
-                ("WAITING", "all", ""), 
-                ("PARENT_ARRIVED", "all", ""),
-                ("PICKED_UP", "all", ""),
-            ]
-            for status, grade, search in common_filters:
-                cache_key = generate_dashboard_cache_key(user_id, status, grade, search)
-                cache.delete(cache_key)
-        else:
-            # Clear common dashboard cache keys for all users (up to reasonable limit)
-            # Note: This approach is more targeted than cache.clear() but may not catch all keys
-            # Consider using a cache backend that supports pattern deletion for full coverage
-            for user_idx in range(1, 101):  # Assume max 100 concurrent users for cache clearing
-                common_filters = [
-                    ("all", "all", ""),
-                    ("WAITING", "all", ""),
-                    ("PARENT_ARRIVED", "all", ""),
-                    ("PICKED_UP", "all", ""),
-                ]
-                for status, grade, search in common_filters:
-                    cache_key = generate_dashboard_cache_key(user_idx, status, grade, search)
-                    cache.delete(cache_key)
+        _clear_all_users_cache()
 
 
 def sanitize_input(text, max_length=None):
@@ -332,7 +349,7 @@ def validate_dismissal_code_format(code, allow_empty=False):
         return False, "Dismissal code is required"
 
     code = code.strip().upper()
-    
+
     # Check again after stripping in case it was only whitespace
     if not code:
         if allow_empty:
@@ -378,6 +395,7 @@ def format_time_ago(timestamp):
 # Cache the optimized queryset configuration to avoid repeated construction
 _OPTIMIZED_QUERYSET_CONFIG = None
 
+
 def get_student_query_optimized():
     """
     Get optimized queryset for students with proper relations.
@@ -401,11 +419,11 @@ def get_student_query_optimized():
 def validate_and_format_dismissal_code(code, allow_empty=False):
     """
     Validate and format dismissal code for consistency.
-    
+
     Args:
         code: Raw dismissal code input
         allow_empty: Whether to allow empty codes
-        
+
     Returns:
         tuple: (formatted_code: str, is_valid: bool, error_message: str)
     """
@@ -413,37 +431,37 @@ def validate_and_format_dismissal_code(code, allow_empty=False):
         if allow_empty:
             return "", True, ""
         return "", False, "Dismissal code is required"
-    
+
     # Format code: strip whitespace and convert to uppercase
     formatted_code = code.strip().upper()
-    
+
     # Validate format
     is_valid, error_message = validate_dismissal_code_format(formatted_code, allow_empty=False)
-    
+
     return formatted_code, is_valid, error_message
 
 
 def check_dismissal_code_uniqueness(code, exclude_student_id=None):
     """
     Check if dismissal code is unique in the database.
-    
+
     Args:
         code: Dismissal code to check
         exclude_student_id: Student ID to exclude from uniqueness check (for updates)
-        
+
     Returns:
         tuple: (is_unique: bool, error_message: str)
     """
     from .models import Student
-    
+
     if not code:
         return True, ""
-    
+
     queryset = Student.objects.filter(dismissal_code=code)
     if exclude_student_id:
         queryset = queryset.exclude(id=exclude_student_id)
-    
+
     if queryset.exists():
         return False, "This dismissal code is already in use by another student"
-    
+
     return True, ""

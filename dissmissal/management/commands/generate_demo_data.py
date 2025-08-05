@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
 from dissmissal.models import Student, PickupEvent
+from dissmissal.constants import DEMO_TEACHER_NAMES, DEMO_GRADES
 import random
 
 
@@ -49,34 +50,41 @@ class Command(BaseCommand):
             demo_staff.save()
             self.stdout.write(self.style.SUCCESS(f"Created demo staff user: {demo_staff.username}"))
 
-        # Demo student data with realistic names and grades
-        demo_students_data = [
-            ("Demo Emma Johnson", "3rd", "Mrs. Smith"),
-            ("Demo Liam Chen", "4th", "Mr. Davis"),
-            ("Demo Olivia Williams", "2nd", "Ms. Garcia"),
-            ("Demo Noah Brown", "5th", "Mrs. Wilson"),
-            ("Demo Ava Rodriguez", "1st", "Ms. Martinez"),
-            ("Demo Ethan Miller", "3rd", "Mrs. Smith"),
-            ("Demo Sophia Anderson", "4th", "Mr. Davis"),
-            ("Demo Mason Taylor", "2nd", "Ms. Garcia"),
-            ("Demo Isabella Moore", "5th", "Mrs. Wilson"),
-            ("Demo Jacob White", "1st", "Ms. Martinez"),
-            ("Demo Charlotte Jones", "3rd", "Mrs. Smith"),
-            ("Demo William Garcia", "4th", "Mr. Davis"),
-            ("Demo Amelia Martinez", "2nd", "Ms. Garcia"),
-            ("Demo James Wilson", "5th", "Mrs. Wilson"),
-            ("Demo Harper Lopez", "1st", "Ms. Martinez"),
-            ("Demo Benjamin Lee", "3rd", "Mrs. Smith"),
-            ("Demo Evelyn Gonzalez", "4th", "Mr. Davis"),
-            ("Demo Lucas Hernandez", "2nd", "Ms. Garcia"),
-            ("Demo Abigail Perez", "5th", "Mrs. Wilson"),
-            ("Demo Henry Turner", "1st", "Ms. Martinez"),
-            ("Demo Emily Campbell", "3rd", "Mrs. Smith"),
-            ("Demo Alexander Parker", "4th", "Mr. Davis"),
-            ("Demo Elizabeth Evans", "2nd", "Ms. Garcia"),
-            ("Demo Sebastian Stewart", "5th", "Mrs. Wilson"),
-            ("Demo Scarlett Rivera", "1st", "Ms. Martinez"),
+        # Demo student data with realistic names and grades using constants
+        demo_student_names = [
+            "Demo Emma Johnson",
+            "Demo Liam Chen",
+            "Demo Olivia Williams",
+            "Demo Noah Brown",
+            "Demo Ava Rodriguez",
+            "Demo Ethan Miller",
+            "Demo Sophia Anderson",
+            "Demo Mason Taylor",
+            "Demo Isabella Moore",
+            "Demo Jacob White",
+            "Demo Charlotte Jones",
+            "Demo William Garcia",
+            "Demo Amelia Martinez",
+            "Demo James Wilson",
+            "Demo Harper Lopez",
+            "Demo Benjamin Lee",
+            "Demo Evelyn Gonzalez",
+            "Demo Lucas Hernandez",
+            "Demo Abigail Perez",
+            "Demo Henry Turner",
+            "Demo Emily Campbell",
+            "Demo Alexander Parker",
+            "Demo Elizabeth Evans",
+            "Demo Sebastian Stewart",
+            "Demo Scarlett Rivera",
         ]
+
+        # Create demo students data by distributing names across grades and teachers
+        demo_students_data = []
+        for i, name in enumerate(demo_student_names):
+            grade = DEMO_GRADES[i % len(DEMO_GRADES)]
+            teacher = DEMO_TEACHER_NAMES[i % len(DEMO_TEACHER_NAMES)]
+            demo_students_data.append((name, grade, teacher))
 
         students_created = 0
         target_count = min(options["students"], len(demo_students_data))

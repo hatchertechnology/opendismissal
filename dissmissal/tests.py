@@ -444,7 +444,8 @@ class EdgeCaseTests(TestCase):
 
     def test_malformed_dismissal_codes(self):
         """Test handling of various malformed dismissal codes"""
-        student = Student.objects.create(
+        # Create student but don't use it directly - we're testing malformed codes
+        _ = Student.objects.create(
             name="Test Student", grade="3rd", teacher="Test Teacher"
         )
         
