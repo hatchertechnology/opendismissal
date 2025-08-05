@@ -27,7 +27,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fs-4 fw-bold" id="total-count">{{ stats.total|default:0 }}</div>
+                            <div class="fs-4 fw-bold" id="total-count">{{ stats.total_active|default:0 }}</div>
                             <div class="small">Total Active</div>
                         </div>
                         <i class="bi bi-people fs-1 opacity-75"></i>
@@ -354,7 +354,7 @@
         function updateDashboardData(data) {
             // Update statistics cards
             if (data.stats) {
-                document.getElementById('total-count').textContent = data.stats.total;
+                document.getElementById('total-count').textContent = data.stats.total_active;
                 document.getElementById('waiting-count').textContent = data.stats.waiting;
                 document.getElementById('arrived-count').textContent = data.stats.parent_arrived;
                 document.getElementById('picked-up-count').textContent = data.stats.picked_up;

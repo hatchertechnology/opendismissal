@@ -194,8 +194,8 @@
         <script>
         window.OpenDismissalConfig = {
             apiEndpoints: {
-                validateCode: "{% url 'dissmissal:api_validate_code' %}",
-                status: "{% url 'dissmissal:api_status' %}"
+                validateCode: "{% url 'dissmissal:validate_code_api' %}",
+                status: "{% url 'dissmissal:dashboard_status_api' %}"
             },
             csrfToken: "{{ csrf_token }}"
         };
