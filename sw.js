@@ -4,7 +4,7 @@
  * Author: Nathan Clarke
  */
 
-const CACHE_VERSION = 'v1.1';
+const CACHE_VERSION = 'v1.2';
 const CACHE_NAME = 'opendismissal-' + CACHE_VERSION;
 const urlsToCache = [
     // Core application assets
@@ -16,12 +16,9 @@ const urlsToCache = [
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css',
     
-    // Core application pages
+    // Core application pages (but not API endpoints)
     '/dissmissal/',
     '/dissmissal/arrival/',
-    
-    // API endpoints for offline caching
-    '/dissmissal/api/status/',
 ];
 
 // Install event - cache resources
@@ -74,6 +71,33 @@ self.addEventListener('fetch', function(event) {
         return;
     }
     
+    // Never cache API endpoints that need real-time data
+    const isApiRequest = event.request.url.includes('/dissmissal/api/');
+    
+    if (isApiRequest) {
+        // For API requests, always go to network for fresh data
+        event.respondWith(
+            fetch(event.request).catch(function() {
+                // If network fails, return a basic error response
+                return new Response(
+                    JSON.stringify({
+                        success: false,
+                        error: 'Network unavailable',
+                        offline: true
+                    }),
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        status: 503
+                    }
+                );
+            })
+        );
+        return;
+    }
+    
+    // For non-API requests, use cache-first strategy
     event.respondWith(
         caches.match(event.request)
             .then(function(response) {
@@ -93,12 +117,13 @@ self.addEventListener('fetch', function(event) {
                     // Clone response for caching
                     const responseToCache = response.clone();
                     
-                    // Cache new responses for future use
+                    // Cache new responses for future use (but not API endpoints)
                     caches.open(CACHE_NAME)
                         .then(function(cache) {
-                            // Only cache GET requests for app resources
-                            if (event.request.url.includes('/dissmissal/') || 
-                                event.request.url.includes('/static/')) {
+                            // Only cache static resources and pages, not API endpoints
+                            if ((event.request.url.includes('/dissmissal/') || 
+                                event.request.url.includes('/static/')) &&
+                                !event.request.url.includes('/api/')) {
                                 cache.put(event.request, responseToCache);
                             }
                         });

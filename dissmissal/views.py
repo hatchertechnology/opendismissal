@@ -205,7 +205,7 @@ def parent_arrival_view(request):
                         # Clear dashboard cache
                         clear_dashboard_cache()
 
-                        # Success message and redirect
+                        # Success message and clear form for next entry
                         messages.success(
                             request,
                             f"Parent arrival logged for {student.name} (Grade {student.grade}, {student.teacher})",
@@ -223,7 +223,8 @@ def parent_arrival_view(request):
                             },
                         )
 
-                        return redirect("dissmissal:dashboard")
+                        # Clear form and stay on page for quick successive entries
+                        form = ParentArrivalForm()
 
             except Student.DoesNotExist:
                 messages.error(

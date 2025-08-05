@@ -24,4 +24,5 @@ urlpatterns = [
     path("api/quick-pickup/", api.quick_pickup_api, name="quick_pickup_api"),
     path("api/search/", api.student_search_api, name="student_search_api"),
     path("api/bulk-action/", api.bulk_action_api, name="bulk_action_api"),
+    path("api/reset-all/", api.reset_all_api, name="reset_all_api"),
 ]

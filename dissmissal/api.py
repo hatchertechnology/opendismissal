@@ -69,15 +69,22 @@ def dashboard_status_api(request):
                 "timestamp": timezone.now().isoformat(),
             }
 
-            # Cache for 30 seconds to balance performance and freshness
-            cache.set(cache_key, data, timeout=30)
+            # Cache for 5 seconds to match dashboard refresh rate
+            cache.set(cache_key, data, timeout=5)
 
-        return JsonResponse(data)
+        response = JsonResponse(data)
+        # Prevent caching of real-time data
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response
 
     except Exception:
-        return JsonResponse(
+        response = JsonResponse(
             {"success": False, "error": "Failed to retrieve dashboard status"}, status=500
         )
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
 
 
 @login_required
@@ -196,7 +203,7 @@ def quick_pickup_api(request):
             # Refresh student data
             student.refresh_from_db()
 
-            return JsonResponse(
+            response = JsonResponse(
                 {
                     "success": True,
                     "message": f"Pickup completed for {student.name}",
@@ -208,6 +215,10 @@ def quick_pickup_api(request):
                     },
                 }
             )
+            # Prevent caching of pickup responses
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            return response
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid request format"})
@@ -401,3 +412,71 @@ def bulk_action_api(request):
         return JsonResponse({"success": False, "error": "Invalid request format"})
     except Exception:
         return JsonResponse({"success": False, "error": "Bulk action failed"})
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="5/m")
+@csrf_protect
+def reset_all_api(request):
+    """
+    API endpoint to reset all active students to 'WAITING' status.
+    This effectively restarts the dismissal process for all students.
+    """
+    try:
+        data = json.loads(request.body)
+        action = data.get("action")
+
+        if action != "reset_all_students":
+            return JsonResponse({"success": False, "error": "Invalid action"})
+
+        with transaction.atomic():
+            # Get all active students
+            students = Student.objects.filter(is_active=True)
+            
+            if not students.exists():
+                return JsonResponse({"success": False, "error": "No active students found"})
+
+            # Reset all students to WAITING status
+            reset_count = 0
+            for student in students:
+                if student.current_status != "WAITING":
+                    student.current_status = "WAITING"
+                    student.save(update_fields=["current_status", "status_updated_at"])
+                    reset_count += 1
+
+            # Log the reset action
+            log_audit_event(
+                user=request.user,
+                action="RESET_ALL_STUDENTS",
+                ip_address=get_client_ip(request),
+                details={
+                    "total_students": students.count(),
+                    "students_reset": reset_count,
+                    "timestamp": timezone.now().isoformat(),
+                },
+            )
+
+            # Clear cache to refresh dashboard
+            from .utils import clear_dashboard_cache
+            clear_dashboard_cache()
+
+            response = JsonResponse(
+                {
+                    "success": True,
+                    "message": f"Successfully reset {reset_count} students to 'Waiting for Parent' status",
+                    "total_students": students.count(),
+                    "students_reset": reset_count,
+                }
+            )
+            # Prevent caching of reset responses
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            return response
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid request format"})
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": "An error occurred while resetting students"}
+        )

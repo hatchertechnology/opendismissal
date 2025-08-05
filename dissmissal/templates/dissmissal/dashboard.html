@@ -11,11 +11,21 @@
             <p class="text-muted mb-0">Real-time view of student dismissal status</p>
         </div>
         <div class="col-auto">
-            <a href="{% url 'dissmissal:parent_arrival' %}"
-               class="btn btn-primary btn-mobile">
-                <i class="bi bi-person-plus me-1"></i>
-                Log Parent Arrival
-            </a>
+            <div class="btn-group" role="group">
+                <a href="{% url 'dissmissal:parent_arrival' %}"
+                   class="btn btn-primary btn-mobile">
+                    <i class="bi bi-person-plus me-1"></i>
+                    Log Parent Arrival
+                </a>
+                <button type="button" 
+                        class="btn btn-warning btn-mobile" 
+                        id="reset-all-btn"
+                        data-bs-toggle="modal" 
+                        data-bs-target="#resetAllModal">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                    Reset All
+                </button>
+            </div>
         </div>
     </div>
 {% endblock %}
@@ -143,7 +153,7 @@
                     Refresh
                 </button>
                 <small class="text-muted">
-                    Auto-refresh: <span id="refresh-countdown">30</span>s
+                    Auto-refresh: <span id="refresh-countdown">5</span>s
                 </small>
             </div>
         </div>
@@ -188,11 +198,13 @@
                                     <td>
                                         <div class="btn-group-sm" role="group">
                                             {% if student.current_status == 'PARENT_ARRIVED' %}
-                                                <a href="{% url 'dissmissal:student_pickup_specific' student.id %}"
-                                                   class="btn btn-success btn-sm">
+                                                <button class="btn btn-success btn-sm pickup-btn"
+                                                        data-student-id="{{ student.id }}"
+                                                        data-student-name="{{ student.name|escapejs }}"
+                                                        type="button">
                                                     <i class="bi bi-check-circle me-1"></i>
                                                     <span class="d-none d-sm-inline">Complete</span>
-                                                </a>
+                                                </button>
                                             {% elif student.current_status == 'WAITING' %}
                                                 <a href="{% url 'dissmissal:parent_arrival' %}"
                                                    class="btn btn-primary btn-sm">
@@ -274,17 +286,55 @@
             {% endif %}
         </div>
     </div>
+    
+    <!-- Reset All Students Modal -->
+    <div class="modal fade" id="resetAllModal" tabindex="-1" aria-labelledby="resetAllModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="resetAllModalLabel">
+                        <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
+                        Reset All Students
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action will reset ALL active students to "Waiting for Parent" status.
+                    </div>
+                    <p>This will:</p>
+                    <ul>
+                        <li>Change all student statuses to "Waiting for Parent"</li>
+                        <li>Clear any parent arrival records for today</li>
+                        <li>Reset the dismissal process</li>
+                    </ul>
+                    <p class="mb-0"><strong>Are you sure you want to proceed?</strong></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i>
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-warning" id="confirm-reset-all-btn">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                        Reset All Students
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 {% block extra_js %}
     <script>
         // Dashboard-specific JavaScript
         let refreshTimer;
         let countdownTimer;
-        let countdownSeconds = 30;
+        let countdownSeconds = 5;
         
         // Auto-refresh functionality
         function startRefreshCountdown() {
-            countdownSeconds = 30;
+            countdownSeconds = 5;
             countdownTimer = setInterval(function() {
                 countdownSeconds--;
                 document.getElementById('refresh-countdown').textContent = countdownSeconds;
@@ -320,9 +370,13 @@
                 return;
             }
             
-            fetch(window.OpenDismissalConfig.apiEndpoints.status, {
+            const apiUrl = window.OpenDismissalConfig.apiEndpoints.status + '?_t=' + Date.now();
+            fetch(apiUrl, {
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 }
             })
             .then(response => response.json())
@@ -333,10 +387,13 @@
                 icon.className = 'bi bi-arrow-clockwise me-1';
                 refreshBtn.disabled = false;
                 
-                // Update last updated time
-                const now = new Date();
-                document.getElementById('last-update-time').textContent = 
-                    now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                // Update last updated time if element exists
+                const lastUpdateElement = document.getElementById('last-update-time');
+                if (lastUpdateElement) {
+                    const now = new Date();
+                    lastUpdateElement.textContent = 
+                        now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                }
                 
                 startRefreshCountdown();
             })
@@ -398,21 +455,212 @@
             });
         }
         
-        function updateStatusBadge(badgeElement, status) {
-            badgeElement.className = 'badge bg-' + 
-                (status === 'WAITING' ? 'warning' : 
-                 status === 'PARENT_ARRIVED' ? 'info' : 'success');
+        function updateActionButtons(actionsCell, student) {
+            const btnGroup = actionsCell.querySelector('.btn-group-sm');
+            if (!btnGroup) return;
             
-            badgeElement.innerHTML = 
-                status === 'WAITING' ? '<i class="bi bi-clock me-1"></i>Waiting' :
-                status === 'PARENT_ARRIVED' ? '<i class="bi bi-person-check me-1"></i>Parent Here' :
-                '<i class="bi bi-check-circle me-1"></i>Picked Up';
+            // Clear existing content
+            btnGroup.innerHTML = '';
+            
+            // Create appropriate action based on student status
+            if (student.current_status === 'PARENT_ARRIVED') {
+                btnGroup.innerHTML = `
+                    <button class="btn btn-success btn-sm pickup-btn"
+                            data-student-id="${student.id}"
+                            data-student-name="${student.name}"
+                            type="button">
+                        <i class="bi bi-check-circle me-1"></i>
+                        <span class="d-none d-sm-inline">Complete</span>
+                    </button>
+                `;
+            } else if (student.current_status === 'WAITING') {
+                btnGroup.innerHTML = `
+                    <a href="{% url 'dissmissal:parent_arrival' %}"
+                       class="btn btn-primary btn-sm">
+                        <i class="bi bi-person-plus me-1"></i>
+                        <span class="d-none d-sm-inline">Log Arrival</span>
+                    </a>
+                `;
+            } else {
+                btnGroup.innerHTML = `
+                    <span class="text-success small">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Complete
+                    </span>
+                `;
+            }
+        }
+        
+        function completePickup(studentId, studentName) {
+            const btn = document.querySelector(`button[data-student-id="${studentId}"]`);
+            if (!btn) return;
+            
+            // Show loading state
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+            btn.disabled = true;
+            
+            // Make AJAX request to complete pickup
+            fetch(window.OpenDismissalConfig.apiEndpoints.quickPickup, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.OpenDismissalConfig.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    notes: 'Quick pickup from dashboard'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    showMessage(data.message, 'success');
+                    
+                    // Update the student row immediately
+                    const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
+                    if (row) {
+                        // Update status badge
+                        const statusCell = row.querySelector('td:nth-child(4) .badge');
+                        if (statusCell) {
+                            updateStatusBadge(statusCell, 'PICKED_UP');
+                        }
+                        
+                        // Update action buttons
+                        const actionsCell = row.querySelector('td:last-child');
+                        if (actionsCell) {
+                            updateActionButtons(actionsCell, {
+                                id: studentId,
+                                current_status: 'PICKED_UP'
+                            });
+                        }
+                        
+                        // Update row highlighting
+                        row.className = 'table-success';
+                    }
+                    
+                    // Refresh dashboard stats
+                    refreshDashboard();
+                } else {
+                    // Show error message
+                    showMessage(data.error || 'Failed to complete pickup', 'error');
+                    
+                    // Reset button
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Pickup completion failed:', error);
+                showMessage('Failed to complete pickup. Please try again.', 'error');
+                
+                // Reset button
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
+        }
+        
+        function updateStatusBadge(badgeElement, status) {
+            let badgeClass, badgeContent;
+            
+            if (status === 'WAITING') {
+                badgeClass = 'badge bg-warning';
+                badgeContent = '<i class="bi bi-clock me-1"></i>Waiting';
+            } else if (status === 'PARENT_ARRIVED') {
+                badgeClass = 'badge bg-info';
+                badgeContent = '<i class="bi bi-person-check me-1"></i>Parent Here';
+            } else {
+                badgeClass = 'badge bg-success';
+                badgeContent = '<i class="bi bi-check-circle me-1"></i>Picked Up';
+            }
+            
+            badgeElement.className = badgeClass;
+            badgeElement.innerHTML = badgeContent;
         }
         
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize refresh countdown
             startRefreshCountdown();
+            
+            // Add event delegation for pickup buttons
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.pickup-btn')) {
+                    e.preventDefault();
+                    const btn = e.target.closest('.pickup-btn');
+                    const studentId = btn.dataset.studentId;
+                    const studentName = btn.dataset.studentName;
+                    
+                    if (studentId) {
+                        completePickup(studentId, studentName);
+                    }
+                }
+            });
+            
+            // Reset all students functionality
+            const confirmResetBtn = document.getElementById('confirm-reset-all-btn');
+            if (confirmResetBtn) {
+                confirmResetBtn.addEventListener('click', function() {
+                    resetAllStudents();
+                });
+            }
         });
+        
+        function resetAllStudents() {
+            const btn = document.getElementById('confirm-reset-all-btn');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('resetAllModal'));
+            
+            // Show loading state
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Resetting...';
+            btn.disabled = true;
+            
+            // Make AJAX request to reset all students
+            fetch(window.OpenDismissalConfig.apiEndpoints.resetAll, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.OpenDismissalConfig.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                },
+                body: JSON.stringify({
+                    action: 'reset_all_students'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    showMessage(data.message || 'All students have been reset to "Waiting for Parent" status', 'success');
+                    
+                    // Close modal
+                    modal.hide();
+                    
+                    // Refresh dashboard to show updated data
+                    refreshDashboard();
+                } else {
+                    // Show error message
+                    showMessage(data.error || 'Failed to reset students', 'error');
+                }
+                
+                // Reset button
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            })
+            .catch(error => {
+                console.error('Reset failed:', error);
+                showMessage('Failed to reset students. Please try again.', 'error');
+                
+                // Reset button
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
+        }
         
         // Filter form auto-submit on mobile
         document.getElementById('status-filter').addEventListener('change', function() {

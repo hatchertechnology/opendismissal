@@ -25,19 +25,17 @@
                     <form method="post" id="student-pickup-form">
                         {% csrf_token %}
                         <div class="mb-4">
-                            <label for="{{ form.dismissal_code.id_for_label }}" class="form-label fs-5">
-                                <i class="bi bi-key me-2"></i>
-                                Dismissal Code
+                            <label for="{{ form.student.id_for_label }}" class="form-label fs-5">
+                                <i class="bi bi-person me-2"></i>
+                                Select Student
                             </label>
-                            {{ form.dismissal_code }}
-                            {% if form.dismissal_code.help_text %}<div class="form-text">{{ form.dismissal_code.help_text }}</div>{% endif %}
-                            {% if form.dismissal_code.errors %}
+                            {{ form.student }}
+                            {% if form.student.help_text %}<div class="form-text">{{ form.student.help_text }}</div>{% endif %}
+                            {% if form.student.errors %}
                                 <div class="invalid-feedback d-block">
-                                    {% for error in form.dismissal_code.errors %}{{ error }}{% endfor %}
+                                    {% for error in form.student.errors %}{{ error }}{% endfor %}
                                 </div>
                             {% endif %}
-                            <!-- Real-time validation feedback -->
-                            <div id="code-validation-feedback" class="mt-2"></div>
                         </div>
                         <div class="mb-4">
                             <label for="{{ form.notes.id_for_label }}" class="form-label">
@@ -50,8 +48,7 @@
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             <button type="submit"
                                     class="btn btn-success btn-lg btn-mobile"
-                                    id="submit-btn"
-                                    disabled>
+                                    id="submit-btn">
                                 <i class="bi bi-check-circle me-2"></i>
                                 Complete Pickup
                             </button>
@@ -155,143 +152,58 @@
 {% block extra_js %}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const codeInput = document.getElementById('{{ form.dismissal_code.id_for_label }}');
-            const feedbackDiv = document.getElementById('code-validation-feedback');
+            const studentSelect = document.getElementById('{{ form.student.id_for_label }}');
             const submitBtn = document.getElementById('submit-btn');
             const form = document.getElementById('student-pickup-form');
             
-            let validationTimeout;
-            let lastValidatedCode = '';
-            let isValidForPickup = false;
+            // Check if elements exist before adding event listeners
+            if (!studentSelect) {
+                console.warn('Student select element not found');
+                return;
+            }
             
-            // Quick select functionality
+            // Quick select functionality for ready students list
             document.addEventListener('click', function(e) {
                 if (e.target.closest('.quick-select-btn')) {
                     const btn = e.target.closest('.quick-select-btn');
-                    const code = btn.dataset.code;
                     const name = btn.dataset.name;
                     
-                    codeInput.value = code;
-                    codeInput.focus();
-                    validateCode(code);
-                    
-                    showMessage(`Selected ${name} for pickup`, 'info', 3000);
-                }
-            });
-            
-            // Real-time code validation
-            codeInput.addEventListener('input', function() {
-                const code = this.value.trim().toUpperCase();
-                this.value = code; // Force uppercase
-                
-                clearTimeout(validationTimeout);
-                isValidForPickup = false;
-                submitBtn.disabled = true;
-                
-                if (code.length >= 3 && code !== lastValidatedCode) {
-                    validationTimeout = setTimeout(() => validateCode(code), 500);
-                } else if (code.length < 3) {
-                    clearValidationFeedback();
-                }
-            });
-            
-            function validateCode(code) {
-                if (code === lastValidatedCode) return;
-                
-                showValidationLoading();
-                
-                fetch(window.OpenDismissalConfig.apiEndpoints.validateCode, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-CSRFToken': getCsrfToken(),
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: `code=${encodeURIComponent(code)}&action=pickup`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    lastValidatedCode = code;
-                    
-                    if (data.valid) {
-                        if (data.student.current_status === 'PARENT_ARRIVED') {
-                            showValidationSuccess(data.student);
-                            isValidForPickup = true;
-                            submitBtn.disabled = false;
-                        } else if (data.student.current_status === 'PICKED_UP') {
-                            showValidationError('This student has already been picked up.');
-                        } else {
-                            showValidationError('Parent has not arrived yet. Log parent arrival first.');
+                    // Find the option with matching student name and select it
+                    const options = studentSelect.querySelectorAll('option');
+                    for (let option of options) {
+                        if (option.textContent.includes(name)) {
+                            studentSelect.value = option.value;
+                            studentSelect.dispatchEvent(new Event('change'));
+                            break;
                         }
-                    } else {
-                        showValidationError(data.error);
                     }
-                })
-                .catch(error => {
-                    console.error('Validation failed:', error);
-                    showValidationError('Unable to validate code. Please try again.');
+                    
+                    if (typeof showMessage === 'function') {
+                        showMessage(`Selected ${name} for pickup`, 'info', 3000);
+                    }
+                }
+            });
+            
+            // Form submission handling
+            if (form && submitBtn) {
+                form.addEventListener('submit', function(e) {
+                    if (!studentSelect.value) {
+                        e.preventDefault();
+                        if (typeof showMessage === 'function') {
+                            showMessage('Please select a student for pickup', 'warning');
+                        }
+                        return;
+                    }
+                    
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Completing Pickup...';
+                    submitBtn.disabled = true;
                 });
             }
             
-            function showValidationLoading() {
-                feedbackDiv.innerHTML = `
-                    <div class="d-flex align-items-center text-muted">
-                        <div class="spinner-border spinner-border-sm me-2" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        Validating code...
-                    </div>
-                `;
+            // Auto-focus on student selection for quick entry
+            if (studentSelect && !studentSelect.value) {
+                studentSelect.focus();
             }
-            
-            function showValidationSuccess(student) {
-                feedbackDiv.innerHTML = `
-                    <div class="alert alert-success py-2 mb-0">
-                        <i class="bi bi-check-circle me-2"></i>
-                        <strong>Ready for Pickup</strong> - ${student.name} (${student.grade}, ${student.teacher})
-                        <br>
-                        <small><i class="bi bi-person-check me-1"></i>Parent has arrived - OK to complete pickup</small>
-                    </div>
-                `;
-                
-                codeInput.classList.remove('is-invalid');
-                codeInput.classList.add('is-valid');
-            }
-            
-            function showValidationError(error) {
-                feedbackDiv.innerHTML = `
-                    <div class="alert alert-warning py-2 mb-0">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        ${error}
-                    </div>
-                `;
-                
-                codeInput.classList.remove('is-valid');
-                codeInput.classList.add('is-invalid');
-            }
-            
-            function clearValidationFeedback() {
-                feedbackDiv.innerHTML = '';
-                codeInput.classList.remove('is-valid', 'is-invalid');
-                lastValidatedCode = '';
-                isValidForPickup = false;
-                submitBtn.disabled = true;
-            }
-            
-            // Form submission handling
-            form.addEventListener('submit', function(e) {
-                if (!isValidForPickup) {
-                    e.preventDefault();
-                    showMessage('Please enter a valid dismissal code first', 'warning');
-                    return;
-                }
-                
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Completing Pickup...';
-                submitBtn.disabled = true;
-            });
-            
-            // Focus on code input for quick entry
-            codeInput.focus();
         });
     </script>
 {% endblock %}

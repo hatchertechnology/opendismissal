@@ -22,6 +22,22 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            {% if message.tags == 'success' %}
+                                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    <hr class="my-2">
+                                    <small class="d-block mb-0">
+                                        <i class="bi bi-arrow-right me-1"></i>
+                                        <strong>Ready for next entry:</strong> Enter the next dismissal code below.
+                                    </small>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                     <form method="post" id="parent-arrival-form">
                         {% csrf_token %}
                         <div class="mb-4">
@@ -95,17 +111,27 @@
                 <div class="card-header">
                     <h6 class="mb-0">
                         <i class="bi bi-info-circle me-2"></i>
-                        Instructions
+                        Quick Entry Tips
                     </h6>
                 </div>
                 <div class="card-body">
-                    <ol class="mb-0">
-                        <li class="mb-2">Ask the parent for their dismissal code</li>
-                        <li class="mb-2">Enter the code in the field above</li>
-                        <li class="mb-2">The system will validate the code automatically</li>
-                        <li class="mb-0">Click "Log Parent Arrival" to confirm</li>
+                    <h6 class="small fw-bold text-primary mb-2">
+                        <i class="bi bi-lightning me-1"></i>
+                        Fast Entry Workflow:
+                    </h6>
+                    <ol class="mb-3">
+                        <li class="mb-1">Enter dismissal code</li>
+                        <li class="mb-1">Press Enter to submit</li>
+                        <li class="mb-1">Form auto-clears for next entry</li>
+                        <li class="mb-0">Repeat for each parent</li>
                     </ol>
-                    <hr>
+                    
+                    <h6 class="small fw-bold text-muted mb-2">Keyboard Shortcuts:</h6>
+                    <ul class="small mb-3">
+                        <li><kbd>Ctrl</kbd> + <kbd>L</kbd> - Focus code input</li>
+                        <li><kbd>Esc</kbd> - Clear form</li>
+                    </ul>
+                    
                     <h6 class="small fw-bold text-muted mb-2">Code Format:</h6>
                     <ul class="small mb-0">
                         <li>6-8 characters long</li>
@@ -221,8 +247,54 @@
                 submitBtn.disabled = true;
             });
             
+            // Auto-clear form after successful submission
+            // Check for success messages and clear form if found
+            const successMessages = document.querySelectorAll('.alert-success');
+            if (successMessages.length > 0) {
+                // Clear the form fields
+                codeInput.value = '';
+                const notesInput = document.getElementById('{{ form.notes.id_for_label }}');
+                if (notesInput) {
+                    notesInput.value = '';
+                }
+                
+                // Clear validation feedback
+                clearValidationFeedback();
+                
+                // Focus back on code input for next entry
+                setTimeout(() => {
+                    codeInput.focus();
+                }, 100);
+                
+                // Reset submit button
+                submitBtn.innerHTML = '<i class="bi bi-person-check me-2"></i>Log Parent Arrival';
+                submitBtn.disabled = false;
+            }
+            
             // Focus on code input for quick entry
             codeInput.focus();
+            
+            // Global keyboard shortcuts for efficiency
+            document.addEventListener('keydown', function(e) {
+                // Ctrl/Cmd + L = Focus on code input
+                if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+                    e.preventDefault();
+                    codeInput.focus();
+                    codeInput.select();
+                }
+                
+                // Escape = Clear form
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    codeInput.value = '';
+                    const notesInput = document.getElementById('{{ form.notes.id_for_label }}');
+                    if (notesInput) {
+                        notesInput.value = '';
+                    }
+                    clearValidationFeedback();
+                    codeInput.focus();
+                }
+            });
         });
     </script>
 {% endblock %}

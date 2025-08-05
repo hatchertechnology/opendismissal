@@ -195,7 +195,9 @@
         window.OpenDismissalConfig = {
             apiEndpoints: {
                 validateCode: "{% url 'dissmissal:validate_code_api' %}",
-                status: "{% url 'dissmissal:dashboard_status_api' %}"
+                status: "{% url 'dissmissal:dashboard_status_api' %}",
+                quickPickup: "{% url 'dissmissal:quick_pickup_api' %}",
+                resetAll: "{% url 'dissmissal:reset_all_api' %}"
             },
             csrfToken: "{{ csrf_token }}"
         };
