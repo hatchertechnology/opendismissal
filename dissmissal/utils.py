@@ -250,6 +250,9 @@ def sanitize_input(text, max_length=None):
 
     import html
 
+    # Convert to string if not already
+    text = str(text)
+
     # Strip whitespace and escape HTML
     sanitized = html.escape(text.strip())
 
@@ -285,6 +288,7 @@ def generate_dashboard_cache_key(user_id, status_filter="all", grade_filter="all
 def validate_dismissal_code_format(code):
     """
     Validate dismissal code format without checking database.
+    Updated to support 3-8 character codes for security and flexibility.
 
     Args:
         code: Dismissal code to validate
@@ -299,8 +303,14 @@ def validate_dismissal_code_format(code):
 
     code = code.strip().upper()
 
-    if len(code) < 6 or len(code) > 8:
-        return False, "Dismissal code must be 6-8 characters long"
+    if len(code) < 3:
+        return False, (
+            "Dismissal code must be at least 3 characters for security. "
+            "Consider codes like '101', '205', or 'ABC' instead of simple numbers."
+        )
+
+    if len(code) > 8:
+        return False, "Dismissal code cannot exceed 8 characters"
 
     if not re.match(r"^[A-Z0-9]+$", code):
         return False, "Dismissal code can only contain letters and numbers"

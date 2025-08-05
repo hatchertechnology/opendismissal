@@ -87,12 +87,14 @@ class UtilityFunctionTests(TestCase):
     def test_validate_dismissal_code_format_valid_codes(self):
         """Test validation of valid dismissal code formats"""
         valid_codes = [
-            "ABC123",
-            "ABCD12",
-            "A1B2C3",
-            "123ABC",
-            "AB123C",
-            "A12B34",
+            "ABC",      # 3 characters (new minimum)
+            "ABC123",   # 6 characters
+            "ABCD12",   # 6 characters
+            "A1B2C3",   # 6 characters
+            "123ABC",   # 6 characters
+            "AB123C",   # 6 characters
+            "A12B34",   # 6 characters
+            "A1B2C3D4", # 8 characters (maximum)
         ]
         
         for code in valid_codes:
@@ -104,8 +106,8 @@ class UtilityFunctionTests(TestCase):
         """Test validation of invalid dismissal code formats"""
         invalid_codes = [
             ("", "Dismissal code is required"),
-            ("ABC", "Dismissal code must be 6-8 characters long"),
-            ("ABCDEFGHI", "Dismissal code must be 6-8 characters long"),
+            ("AB", "Dismissal code must be at least 3 characters for security"),
+            ("ABCDEFGHI", "Dismissal code cannot exceed 8 characters"),
             ("ABC@123", "Dismissal code can only contain letters and numbers"),
             ("ABC 123", "Dismissal code can only contain letters and numbers"),
             ("ABC-123", "Dismissal code can only contain letters and numbers"),
@@ -115,7 +117,7 @@ class UtilityFunctionTests(TestCase):
         for code, expected_message in invalid_codes:
             is_valid, message = validate_dismissal_code_format(code)
             self.assertFalse(is_valid, f"Code '{code}' should be invalid")
-            self.assertEqual(message, expected_message)
+            self.assertIn(expected_message, message)
 
     def test_sanitize_input_basic(self):
         """Test basic input sanitization"""

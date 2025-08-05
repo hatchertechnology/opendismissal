@@ -12,6 +12,22 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
 
+def validate_dismissal_code_format(value):
+    """
+    Enhanced validation for dismissal codes with security minimum.
+    Ensures codes are 3-8 characters (alphanumeric) for security and flexibility.
+    """
+    if len(value) < 3:
+        raise ValidationError(
+            "Dismissal code must be at least 3 characters for security. "
+            "Consider codes like '101', '205', or 'ABC' instead of simple numbers."
+        )
+    if len(value) > 8:
+        raise ValidationError("Dismissal code cannot exceed 8 characters.")
+    if not value.isalnum():
+        raise ValidationError("Dismissal code must contain only letters and numbers.")
+
+
 class StudentManager(models.Manager):
     """Custom manager for optimized student queries"""
 
@@ -53,7 +69,8 @@ class Student(models.Model):
         max_length=8,
         unique=True,
         db_index=True,
-        help_text="Unique 6-8 character code for parent verification",
+        help_text="3-8 character dismissal code (alphanumeric only)",
+        validators=[validate_dismissal_code_format]
     )
     grade = models.CharField(max_length=20, help_text="Student's grade level")
     teacher = models.CharField(max_length=100, help_text="Homeroom teacher name")
@@ -100,6 +117,15 @@ class Student(models.Model):
 
     def save(self, *args, **kwargs):
         """Auto-generate dismissal code if not provided and validate data"""
+        # Check for code changes for audit logging
+        old_code = None
+        if self.pk:  # Existing student
+            try:
+                old_student = Student.objects.get(pk=self.pk)
+                old_code = old_student.dismissal_code
+            except Student.DoesNotExist:
+                pass
+        
         # Generate dismissal code if not provided (before validation)
         if not self.dismissal_code:
             self.dismissal_code = self.generate_dismissal_code()
@@ -113,12 +139,40 @@ class Student(models.Model):
         self.full_clean()
 
         super().save(*args, **kwargs)
+        
+        # Log code changes for audit trail
+        if old_code and old_code != self.dismissal_code:
+            self._log_code_change(old_code, self.dismissal_code)
+
+    def _log_code_change(self, old_code, new_code):
+        """Log dismissal code changes for audit trail"""
+        from .utils import log_audit_event
+        
+        # Get user context if available (set by admin or view)
+        user = getattr(self, '_change_user', None)
+        ip_address = getattr(self, '_change_ip', '127.0.0.1')
+        
+        if user:
+            log_audit_event(
+                user=user,
+                action=f"Changed dismissal code for student {self.name}",
+                ip_address=ip_address,
+                details={
+                    'student_id': self.id,
+                    'student_name': self.name,
+                    'old_code': old_code,
+                    'new_code': new_code,
+                    'grade': self.grade,
+                    'teacher': self.teacher
+                }
+            )
 
     @classmethod
     def generate_dismissal_code(cls):
         """Generate cryptographically secure unique dismissal code"""
         while True:
             # Use secrets module for cryptographic security
+            # Generate 6-character codes by default for backwards compatibility
             code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
             if not cls.objects.filter(dismissal_code=code).exists():
                 return code

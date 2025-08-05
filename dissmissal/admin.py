@@ -27,7 +27,7 @@ class StudentAdmin(admin.ModelAdmin):
     list_filter = ["is_active", "current_status", "grade", "teacher", "created_at"]
     search_fields = ["name", "dismissal_code", "teacher"]
     ordering = ["name"]
-    readonly_fields = ["dismissal_code", "status_updated_at", "created_at"]
+    readonly_fields = ["status_updated_at", "created_at"]
 
     fieldsets = (
         ("Student Information", {"fields": ("name", "grade", "teacher")}),
@@ -36,6 +36,13 @@ class StudentAdmin(admin.ModelAdmin):
     )
 
     actions = ["reset_to_waiting", "deactivate_students", "generate_new_codes"]
+
+    def save_model(self, request, obj, form, change):
+        """Add user context for audit logging"""
+        from .utils import get_client_ip
+        obj._change_user = request.user
+        obj._change_ip = get_client_ip(request)
+        super().save_model(request, obj, form, change)
 
     def dismissal_code_display(self, obj):
         """Display dismissal code with monospace font"""
