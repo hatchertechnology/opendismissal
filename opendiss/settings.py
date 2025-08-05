@@ -84,7 +84,6 @@ DATABASES = {
 # Database performance optimizations
 if "postgresql" in DATABASES["default"]["ENGINE"]:
     DATABASES["default"]["OPTIONS"] = {
-        "MAX_CONNS": 20,
         "conn_max_age": 600,  # Connection pooling
     }
 elif "sqlite" in DATABASES["default"]["ENGINE"]:
