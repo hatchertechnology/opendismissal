@@ -60,6 +60,36 @@ def log_audit_event(user, action, ip_address, details=None):
     audit_logger.info(f"User {user.username} performed {action}", extra=log_entry)
 
 
+def log_dismissal_code_change(user, student, old_code, new_code, ip_address, method="manual"):
+    """
+    Log dismissal code changes for audit trail.
+
+    Args:
+        user: Django User object who made the change
+        student: Student object whose code was changed
+        old_code: Previous dismissal code
+        new_code: New dismissal code
+        ip_address: IP address of the user
+        method: How the code was changed (manual, auto-generated, bulk_import, etc.)
+    """
+    details = {
+        "student_id": student.id,
+        "student_name": student.name,
+        "old_dismissal_code": old_code,
+        "new_dismissal_code": new_code,
+        "change_method": method,
+        "student_grade": student.grade,
+        "student_teacher": student.teacher,
+    }
+    
+    log_audit_event(
+        user=user,
+        action="DISMISSAL_CODE_CHANGED",
+        ip_address=ip_address,
+        details=details
+    )
+
+
 def get_dashboard_stats(cache_timeout=30):
     """
     Calculate dashboard statistics for display with independent caching.
@@ -282,12 +312,14 @@ def generate_dashboard_cache_key(user_id, status_filter="all", grade_filter="all
     )
 
 
-def validate_dismissal_code_format(code):
+def validate_dismissal_code_format(code, allow_empty=False):
     """
     Validate dismissal code format without checking database.
+    Updated to support 1-8 character codes for the editable system.
 
     Args:
         code: Dismissal code to validate
+        allow_empty: Whether to allow empty codes (for auto-generation)
 
     Returns:
         tuple: (is_valid: bool, error_message: str)
@@ -295,12 +327,14 @@ def validate_dismissal_code_format(code):
     import re
 
     if not code:
+        if allow_empty:
+            return True, ""
         return False, "Dismissal code is required"
 
     code = code.strip().upper()
 
-    if len(code) < 6 or len(code) > 8:
-        return False, "Dismissal code must be 6-8 characters long"
+    if len(code) < 1 or len(code) > 8:
+        return False, "Dismissal code must be 1-8 characters long"
 
     if not re.match(r"^[A-Z0-9]+$", code):
         return False, "Dismissal code can only contain letters and numbers"
@@ -356,3 +390,54 @@ def get_student_query_optimized():
         )
 
     return Student.objects.prefetch_related(_OPTIMIZED_QUERYSET_CONFIG)
+
+
+def validate_and_format_dismissal_code(code, allow_empty=False):
+    """
+    Validate and format dismissal code for consistency.
+    
+    Args:
+        code: Raw dismissal code input
+        allow_empty: Whether to allow empty codes
+        
+    Returns:
+        tuple: (formatted_code: str, is_valid: bool, error_message: str)
+    """
+    if not code:
+        if allow_empty:
+            return "", True, ""
+        return "", False, "Dismissal code is required"
+    
+    # Format code: strip whitespace and convert to uppercase
+    formatted_code = code.strip().upper()
+    
+    # Validate format
+    is_valid, error_message = validate_dismissal_code_format(formatted_code, allow_empty=False)
+    
+    return formatted_code, is_valid, error_message
+
+
+def check_dismissal_code_uniqueness(code, exclude_student_id=None):
+    """
+    Check if dismissal code is unique in the database.
+    
+    Args:
+        code: Dismissal code to check
+        exclude_student_id: Student ID to exclude from uniqueness check (for updates)
+        
+    Returns:
+        tuple: (is_unique: bool, error_message: str)
+    """
+    from .models import Student
+    
+    if not code:
+        return True, ""
+    
+    queryset = Student.objects.filter(dismissal_code=code)
+    if exclude_student_id:
+        queryset = queryset.exclude(id=exclude_student_id)
+    
+    if queryset.exists():
+        return False, "This dismissal code is already in use by another student"
+    
+    return True, ""

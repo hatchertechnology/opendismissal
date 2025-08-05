@@ -53,7 +53,8 @@ class Student(models.Model):
         max_length=8,
         unique=True,
         db_index=True,
-        help_text="Unique 6-8 character code for parent verification",
+        blank=True,  # Allow blank for auto-generation
+        help_text="Unique 1-8 character alphanumeric code for parent verification. Leave blank to auto-generate starting at 100.",
     )
     grade = models.CharField(max_length=20, help_text="Student's grade level")
     teacher = models.CharField(max_length=100, help_text="Homeroom teacher name")
@@ -88,7 +89,9 @@ class Student(models.Model):
         return f"{self.name} ({self.dismissal_code}) - {self.get_current_status_display()}"
 
     def clean(self):
-        """Validate student data"""
+        """Validate student data including dismissal code"""
+        from .utils import validate_and_format_dismissal_code, check_dismissal_code_uniqueness
+        
         if not self.name or len(self.name.strip()) < 2:
             raise ValidationError("Student name must be at least 2 characters long")
 
@@ -97,6 +100,24 @@ class Student(models.Model):
 
         if not self.teacher or not self.teacher.strip():
             raise ValidationError("Teacher name is required")
+        
+        # Validate dismissal code if provided
+        if self.dismissal_code:
+            formatted_code, is_valid, error_message = validate_and_format_dismissal_code(
+                self.dismissal_code, allow_empty=False
+            )
+            if not is_valid:
+                raise ValidationError({"dismissal_code": error_message})
+            
+            # Check uniqueness
+            is_unique, error_message = check_dismissal_code_uniqueness(
+                formatted_code, exclude_student_id=self.pk
+            )
+            if not is_unique:
+                raise ValidationError({"dismissal_code": error_message})
+            
+            # Apply formatting
+            self.dismissal_code = formatted_code
 
     def save(self, *args, **kwargs):
         """Auto-generate dismissal code if not provided and validate data"""
@@ -113,15 +134,70 @@ class Student(models.Model):
         self.full_clean()
 
         super().save(*args, **kwargs)
+        
+        # Log dismissal code changes for audit trail
+        # Note: This requires request context, which we'll handle in the admin
+        # For now, we'll just track the change without logging
 
     @classmethod
     def generate_dismissal_code(cls):
-        """Generate cryptographically secure unique dismissal code"""
-        while True:
-            # Use secrets module for cryptographic security
-            code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
-            if not cls.objects.filter(dismissal_code=code).exists():
-                return code
+        """Generate unique incrementing dismissal code starting at 100"""
+        # Find the highest numeric dismissal code that's >= 100
+        existing_codes = cls.objects.filter(
+            dismissal_code__regex=r'^[0-9]+$',
+            dismissal_code__gte='100'
+        ).values_list('dismissal_code', flat=True)
+        
+        # Convert to integers and find the maximum
+        numeric_codes = []
+        for code in existing_codes:
+            try:
+                num = int(code)
+                if num >= 100:  # Only consider codes >= 100 for auto-increment
+                    numeric_codes.append(num)
+            except ValueError:
+                continue
+        
+        if numeric_codes:
+            next_code = max(numeric_codes) + 1
+        else:
+            next_code = 100  # Start at 100
+        
+        # Ensure the generated code doesn't conflict with any existing code
+        while cls.objects.filter(dismissal_code=str(next_code)).exists():
+            next_code += 1
+        
+        return str(next_code)
+    
+    def update_dismissal_code(self, new_code, user=None, ip_address=None, method="manual"):
+        """Update dismissal code with audit logging"""
+        from .utils import log_dismissal_code_change
+        
+        old_code = self.dismissal_code
+        
+        if new_code:
+            # Manual code update
+            self.dismissal_code = new_code
+        else:
+            # Auto-generate new code
+            self.dismissal_code = self.generate_dismissal_code()
+            method = "auto_generated"
+        
+        # Save with validation
+        self.save()
+        
+        # Log the change if user and IP are provided
+        if user and ip_address:
+            log_dismissal_code_change(
+                user=user,
+                student=self,
+                old_code=old_code,
+                new_code=self.dismissal_code,
+                ip_address=ip_address,
+                method=method
+            )
+        
+        return self.dismissal_code
 
     def get_latest_event(self):
         """Get most recent pickup event for this student"""

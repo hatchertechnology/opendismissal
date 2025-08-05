@@ -340,16 +340,21 @@ class UtilityTestCase(TestCase):
 
     def test_validate_dismissal_code_format(self):
         """Test dismissal code format validation"""
-        # Valid codes
+        # Valid codes (updated for 3-8 character range)
         self.assertTrue(validate_dismissal_code_format("ABC123")[0])
         self.assertTrue(validate_dismissal_code_format("ABCD12")[0])
         self.assertTrue(validate_dismissal_code_format("AB123CD8")[0])
+        self.assertTrue(validate_dismissal_code_format("ABC")[0])  # Now valid (3 chars minimum)
 
         # Invalid codes
         self.assertFalse(validate_dismissal_code_format("")[0])
-        self.assertFalse(validate_dismissal_code_format("ABC")[0])  # Too short
-        self.assertFalse(validate_dismissal_code_format("ABCDEFGHI")[0])  # Too long
+        self.assertFalse(validate_dismissal_code_format("AB")[0])  # Too short (< 3)
+        self.assertFalse(validate_dismissal_code_format("ABCDEFGHI")[0])  # Too long (> 8)
         self.assertFalse(validate_dismissal_code_format("ABC@123")[0])  # Invalid characters
+        
+        # Test allow_empty parameter
+        self.assertTrue(validate_dismissal_code_format("", allow_empty=True)[0])
+        self.assertFalse(validate_dismissal_code_format("", allow_empty=False)[0])
 
     def test_get_client_ip(self):
         """Test IP address extraction"""
