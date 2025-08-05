@@ -31,51 +31,110 @@ This plan details the implementation of two **ultra-simple** mobile interfaces o
 
 #### Phase 1: Backend API Enhancements
 
-##### 1.1 Create New API Endpoints
+##### 1.1 Create Minimal API Endpoints
 **File**: `dissmissal/api.py`
 
 ```python
-# New endpoints to add:
+# Ultra-simple endpoints:
 
 @login_required
 @require_http_methods(["POST"])
-@ratelimit(key="user", rate="60/m")  # Higher rate for greeter usage
+@ratelimit(key="user", rate="120/m")  # High rate for rapid greeter use
 @csrf_protect
-def parent_arrival_mobile_api(request):
-    """Mobile-optimized parent arrival endpoint"""
-    # Similar to existing parent_arrival_view but JSON-only
-    # Returns structured response for mobile UI
+def greeter_submit_api(request):
+    """Dead simple greeter endpoint - code in, result out"""
+    code = request.POST.get('code', '').upper().strip()
+    
+    if not code:
+        return JsonResponse({'success': False, 'message': 'Code required'})
+    
+    try:
+        student = Student.objects.get(dismissal_code=code, is_active=True)
+        
+        if student.current_status == 'PICKED_UP':
+            return JsonResponse({
+                'success': False, 
+                'message': f'{student.name} already picked up'
+            })
+        elif student.current_status == 'PARENT_ARRIVED':
+            return JsonResponse({
+                'success': True, 
+                'message': f'{student.name} parent already here',
+                'duplicate': True
+            })
+        else:
+            # Create arrival event
+            PickupEvent.objects.create(
+                student=student,
+                staff_member=request.user,
+                event_type='PARENT_ARRIVED',
+                dismissal_code_used=code,
+                ip_address=get_client_ip(request)
+            )
+            return JsonResponse({
+                'success': True,
+                'message': f'{student.name} - Grade {student.grade} - {student.teacher}'
+            })
+    except Student.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Invalid code'})
 
-@login_required 
+@login_required
 @require_http_methods(["GET"])
-def pending_students_api(request):
-    """Get students with PARENT_ARRIVED status for releaser interface"""
-    # Returns students ordered by status_updated_at (arrival timestamp)
-    # Includes real-time updates capability
+def releaser_data_api(request):
+    """Get pending students for releaser - simple list"""
+    students = Student.objects.filter(
+        is_active=True, 
+        current_status='PARENT_ARRIVED'
+    ).order_by('status_updated_at')  # First arrived = first in queue
+    
+    data = []
+    for student in students:
+        data.append({
+            'id': student.id,
+            'name': student.name,
+            'code': student.dismissal_code,
+            'grade': student.grade,
+            'arrived_at': student.status_updated_at.strftime('%I:%M %p')
+        })
+    
+    return JsonResponse({'students': data})
 
 @login_required
 @require_http_methods(["POST"])
-@csrf_protect
-def complete_pickup_mobile_api(request):
-    """Mobile-optimized pickup completion endpoint"""
-    # Enhanced version of existing quick_pickup_api
-    # Optimized for swipe gesture completion
+@csrf_protect  
+def complete_pickup_api(request):
+    """Complete pickup - tap to finish"""
+    student_id = request.POST.get('student_id')
+    
+    if not student_id:
+        return JsonResponse({'success': False, 'message': 'Student ID required'})
+    
+    try:
+        student = Student.objects.get(id=student_id, current_status='PARENT_ARRIVED')
+        
+        PickupEvent.objects.create(
+            student=student,
+            staff_member=request.user,
+            event_type='STUDENT_PICKED_UP',
+            dismissal_code_used=student.dismissal_code,
+            ip_address=get_client_ip(request)
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{student.name} pickup complete'
+        })
+        
+    except Student.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Student not found'})
 ```
 
-##### 1.2 Real-time Updates Strategy
-Since WebSocket infrastructure is not implemented, enhance AJAX polling:
-- Reduce polling interval to 5-10 seconds for mobile interfaces
-- Implement long-polling for better real-time experience
-- Add Server-Sent Events (SSE) endpoint for push notifications
-
-**File**: `dissmissal/api.py`
-```python
-@login_required
-@require_http_methods(["GET"])
-def realtime_updates_api(request):
-    """Server-sent events endpoint for real-time updates"""
-    # Implement SSE for mobile interfaces
-```
+##### 1.2 Simple Polling Strategy
+**No complex real-time needed** - simple polling every 10 seconds:
+- Greeter: No polling needed (submit and done)
+- Releaser: Poll `/api/releaser-data/` every 10 seconds
+- Network resilient with automatic retry
+- Works reliably outdoors with poor connectivity
 
 #### Phase 2: Simplified Mobile Interface Development
 
@@ -91,674 +150,338 @@ path('api/releaser-data/', api.releaser_data_api, name='releaser_data_api'),
 path('api/complete-pickup/', api.complete_pickup_api, name='complete_pickup_api'),
 ```
 
-##### 2.2 Mobile Views
+##### 2.2 Ultra-Simple Mobile Views
 **File**: `dissmissal/views.py`
 
 ```python
 @login_required
 def greeter_mobile_view(request):
-    """Mobile greeter interface - parent arrival check-in"""
-    context = {
-        'page_title': 'Parent Arrival Check-in',
-        'mobile_interface': True,
-        'api_endpoints': {
-            'parent_arrival': reverse('dissmissal:parent_arrival_mobile_api'),
-        }
-    }
-    return render(request, 'dissmissal/mobile/greeter.html', context)
+    """Dead simple greeter interface"""
+    return render(request, 'dissmissal/greeter.html', {
+        'page_title': 'Parent Check-in'
+    })
 
 @login_required  
 def releaser_mobile_view(request):
-    """Mobile releaser interface - student pickup completion"""
-    context = {
-        'page_title': 'Student Release',
-        'mobile_interface': True,
-        'api_endpoints': {
-            'pending_students': reverse('dissmissal:pending_students_api'),
-            'complete_pickup': reverse('dissmissal:complete_pickup_mobile_api'),
-            'realtime_updates': reverse('dissmissal:realtime_updates_api'),
-        }
-    }
-    return render(request, 'dissmissal/mobile/releaser.html', context)
+    """Dead simple releaser interface"""
+    return render(request, 'dissmissal/releaser.html', {
+        'page_title': 'Student Release'
+    })
 ```
 
-##### 2.3 Mobile Templates
+##### 2.3 Ultra-Simple Templates
 
-**File**: `dissmissal/templates/dissmissal/mobile/base_mobile.html`
+**File**: `dissmissal/templates/dissmissal/greeter.html`
 ```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <title>{% block title %}OpenDismissal Mobile{% endblock %}</title>
-    <!-- Mobile-optimized CSS -->
-    <link href="{% static 'dissmissal/css/mobile.css' %}" rel="stylesheet">
+    <title>Parent Check-in</title>
+    <style>
+        body { 
+            font-family: -apple-system, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5;
+            font-size: 20px;
+        }
+        .container { max-width: 400px; margin: 0 auto; }
+        h1 { text-align: center; color: #333; margin-bottom: 40px; }
+        .code-input { 
+            width: 100%; 
+            height: 80px; 
+            font-size: 36px; 
+            text-align: center; 
+            border: 4px solid #007bff; 
+            border-radius: 8px;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        .submit-btn { 
+            width: 100%; 
+            height: 80px; 
+            font-size: 28px; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .submit-btn:disabled { background: #ccc; }
+        .message { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border-radius: 8px; 
+            text-align: center;
+            font-size: 18px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
 </head>
-<body class="mobile-interface">
-    <div id="messages-container"></div>
-    <main>
-        {% block content %}{% endblock %}
-    </main>
-    <!-- Mobile-specific JavaScript -->
-    <script src="{% static 'dissmissal/js/mobile.js' %}"></script>
+<body>
+    <div class="container">
+        <h1>Parent Check-in</h1>
+        <form id="greeter-form">
+            {% csrf_token %}
+            <input type="text" id="code" name="code" class="code-input" 
+                   placeholder="Enter Code" maxlength="8" autocomplete="off" required>
+            <button type="submit" class="submit-btn">CHECK IN</button>
+        </form>
+        <div id="message"></div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('greeter-form');
+        const codeInput = document.getElementById('code');
+        const messageDiv = document.getElementById('message');
+        const submitBtn = form.querySelector('.submit-btn');
+        
+        // Auto-focus and format input
+        codeInput.focus();
+        codeInput.addEventListener('input', function(e) {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        });
+        
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const code = codeInput.value.trim();
+            if (!code) return;
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'PROCESSING...';
+            
+            try {
+                const response = await fetch('/dissmissal/api/greeter-submit/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `code=${encodeURIComponent(code)}`
+                });
+                
+                const data = await response.json();
+                
+                messageDiv.className = 'message ' + (data.success ? 'success' : 'error');
+                messageDiv.textContent = data.message;
+                
+                if (data.success) {
+                    codeInput.value = '';
+                    codeInput.focus();
+                }
+            } catch (error) {
+                messageDiv.className = 'message error';
+                messageDiv.textContent = 'Network error. Try again.';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'CHECK IN';
+            }
+        });
+    </script>
 </body>
 </html>
 ```
 
-**File**: `dissmissal/templates/dissmissal/mobile/greeter.html`
+**File**: `dissmissal/templates/dissmissal/releaser.html`
 ```html
-{% extends 'dissmissal/mobile/base_mobile.html' %}
-
-{% block content %}
-<div class="greeter-container">
-    <div class="header">
-        <h1>Parent Arrival</h1>
-        <div class="status-indicator" id="connection-status">
-            <span class="status-dot"></span>
-            <span class="status-text">Connected</span>
-        </div>
-    </div>
-    
-    <form id="arrival-form" class="arrival-form">
-        {% csrf_token %}
-        <div class="input-group">
-            <label for="dismissal-code" class="sr-only">Student Code</label>
-            <input 
-                type="text" 
-                id="dismissal-code" 
-                name="dismissal_code"
-                class="code-input" 
-                placeholder="Enter student code"
-                maxlength="8"
-                autocomplete="off"
-                autocapitalize="characters"
-                required
-            >
-        </div>
-        <button type="submit" class="submit-btn">
-            <span class="btn-text">Check In</span>
-            <span class="btn-loading">
-                <span class="spinner"></span>
-                Processing...
-            </span>
-        </button>
-    </form>
-    
-    <div class="recent-arrivals" id="recent-arrivals">
-        <h3>Recent Arrivals</h3>
-        <div class="arrivals-list" id="arrivals-list">
-            <!-- Populated by JavaScript -->
-        </div>
-    </div>
-</div>
-{% endblock %}
-```
-
-**File**: `dissmissal/templates/dissmissal/mobile/releaser.html`
-```html
-{% extends 'dissmissal/mobile/base_mobile.html' %}
-
-{% block content %}
-<div class="releaser-container">
-    <div class="header">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Student Release</title>
+    <style>
+        body { 
+            font-family: -apple-system, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5;
+            font-size: 18px;
+        }
+        .container { max-width: 500px; margin: 0 auto; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .student-card { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin-bottom: 15px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 6px solid #007bff;
+        }
+        .student-name { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
+        .student-details { color: #666; margin-bottom: 8px; }
+        .arrival-time { color: #28a745; font-weight: bold; }
+        .complete-btn { 
+            width: 100%; 
+            height: 60px; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 20px; 
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        .complete-btn:disabled { background: #ccc; }
+        .empty-state { 
+            text-align: center; 
+            padding: 60px 20px; 
+            color: #666;
+        }
+        .count { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 15px; 
+            border-radius: 20px; 
+            font-weight: bold;
+        }
+        .message { 
+            position: fixed; 
+            top: 20px; 
+            left: 20px; 
+            right: 20px; 
+            padding: 15px; 
+            border-radius: 8px; 
+            text-align: center;
+            z-index: 1000;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
         <h1>Student Release</h1>
-        <div class="pending-count" id="pending-count">
-            <span class="count">0</span>
-            <span class="label">Pending</span>
-        </div>
-    </div>
-    
-    <div class="students-queue" id="students-queue">
-        <div class="queue-header">
-            <h3>Ready for Pickup</h3>
-            <div class="refresh-indicator" id="refresh-indicator">
-                <span class="spinner"></span>
-            </div>
-        </div>
-        
-        <div class="students-list" id="students-list">
-            <!-- Populated by JavaScript with swipeable cards -->
-        </div>
-        
-        <div class="empty-state" id="empty-state" style="display: none;">
-            <div class="empty-icon">✓</div>
-            <h3>All caught up!</h3>
+        <div class="count" id="count">0</div>
+        <div id="message"></div>
+        <div id="students-list"></div>
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <h3>✓ All caught up!</h3>
             <p>No students waiting for pickup</p>
         </div>
     </div>
     
-    <div class="swipe-hint" id="swipe-hint">
-        <div class="hint-content">
-            <div class="swipe-animation">
-                <div class="card-demo"></div>
-                <div class="swipe-arrow">→</div>
-            </div>
-            <p>Swipe right to complete pickup</p>
-        </div>
-    </div>
-</div>
-{% endblock %}
-```
-
-#### Phase 3: Mobile-Specific CSS
-
-**File**: `dissmissal/static/dissmissal/css/mobile.css`
-
-```css
-/* Mobile-first responsive design */
-.mobile-interface {
-    font-size: 18px; /* Larger base font for mobile */
-    line-height: 1.4;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-
-/* Greeter Interface Styles */
-.greeter-container {
-    padding: 20px;
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-.code-input {
-    width: 100%;
-    height: 80px; /* Large touch target */
-    font-size: 32px;
-    text-align: center;
-    border: 3px solid #007bff;
-    border-radius: 12px;
-    background: #fff;
-    letter-spacing: 4px;
-}
-
-.submit-btn {
-    width: 100%;
-    height: 80px; /* Large touch target */
-    font-size: 24px;
-    font-weight: bold;
-    border: none;
-    border-radius: 12px;
-    background: #28a745;
-    color: white;
-    margin-top: 20px;
-    transition: all 0.3s ease;
-}
-
-/* Releaser Interface Styles */
-.student-card {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 16px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    position: relative;
-    transform: translateX(0);
-    transition: transform 0.3s ease;
-    touch-action: pan-x;
-}
-
-.student-card.swiping {
-    transition: none;
-}
-
-.student-card.completed {
-    transform: translateX(100%);
-    opacity: 0;
-}
-
-.swipe-action {
-    position: absolute;
-    right: -100px;
-    top: 0;
-    bottom: 0;
-    width: 100px;
-    background: #28a745;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 24px;
-}
-
-/* Touch and gesture optimizations */
-@media (hover: none) and (pointer: coarse) {
-    /* Touch device specific styles */
-    .submit-btn:active {
-        transform: scale(0.98);
-    }
-    
-    .student-card:active {
-        background: #f8f9fa;
-    }
-}
-```
-
-#### Phase 4: Mobile JavaScript Implementation
-
-**File**: `dissmissal/static/dissmissal/js/mobile.js`
-
-```javascript
-class OpenDismissalMobile {
-    constructor() {
-        this.config = {
-            pollInterval: 5000, // 5 seconds for mobile
-            swipeThreshold: 100,
-            apiTimeout: 8000
-        };
-        this.init();
-    }
-
-    init() {
-        this.setupTouchOptimizations();
-        this.initializePage();
-    }
-
-    setupTouchOptimizations() {
-        // Prevent zoom on double tap
-        document.addEventListener('touchend', function(e) {
-            e.preventDefault();
-        }, { passive: false });
-
-        // Add visual feedback for touches
-        document.addEventListener('touchstart', function(e) {
-            if (e.target.classList.contains('touchable')) {
-                e.target.classList.add('touching');
-            }
-        });
-
-        document.addEventListener('touchend', function(e) {
-            if (e.target.classList.contains('touchable')) {
-                setTimeout(() => {
-                    e.target.classList.remove('touching');
-                }, 150);
-            }
-        });
-    }
-
-    initializePage() {
-        const path = window.location.pathname;
-        
-        if (path.includes('/mobile/greeter/')) {
-            this.initGreeter();
-        } else if (path.includes('/mobile/releaser/')) {
-            this.initReleaser();
-        }
-    }
-
-    initGreeter() {
-        const form = document.getElementById('arrival-form');
-        const codeInput = document.getElementById('dismissal-code');
-        
-        // Auto-focus and format input
-        codeInput.focus();
-        codeInput.addEventListener('input', this.formatDismissalCode);
-        
-        // Handle form submission
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.handleParentArrival(form);
-        });
-
-        // Start polling for recent arrivals
-        this.startArrivalsPolling();
-    }
-
-    initReleaser() {
-        this.setupSwipeGestures();
-        this.startStudentsPolling();
-        this.setupServerSentEvents();
-    }
-
-    setupSwipeGestures() {
+    <script>
         const studentsList = document.getElementById('students-list');
-        let currentCard = null;
-        let startX = 0;
-        let currentX = 0;
-        let isDragging = false;
-
-        studentsList.addEventListener('touchstart', (e) => {
-            const card = e.target.closest('.student-card');
-            if (!card) return;
-
-            currentCard = card;
-            startX = e.touches[0].clientX;
-            isDragging = true;
-            card.classList.add('swiping');
-        });
-
-        studentsList.addEventListener('touchmove', (e) => {
-            if (!isDragging || !currentCard) return;
-
-            currentX = e.touches[0].clientX;
-            const diffX = currentX - startX;
-
-            if (diffX > 0) { // Only allow right swipe
-                currentCard.style.transform = `translateX(${diffX}px)`;
-                
-                // Show swipe action when threshold reached
-                if (diffX > this.config.swipeThreshold) {
-                    currentCard.classList.add('ready-to-complete');
-                } else {
-                    currentCard.classList.remove('ready-to-complete');
-                }
-            }
-        });
-
-        studentsList.addEventListener('touchend', async (e) => {
-            if (!isDragging || !currentCard) return;
-
-            const diffX = currentX - startX;
-            isDragging = false;
-
-            if (diffX > this.config.swipeThreshold) {
-                // Complete pickup
-                await this.completePickup(currentCard);
-            } else {
-                // Snap back
-                currentCard.style.transform = 'translateX(0)';
-                currentCard.classList.remove('swiping', 'ready-to-complete');
-            }
-
-            currentCard = null;
-            startX = 0;
-            currentX = 0;
-        });
-    }
-
-    async handleParentArrival(form) {
-        const formData = new FormData(form);
-        const submitBtn = form.querySelector('.submit-btn');
+        const emptyState = document.getElementById('empty-state');
+        const countEl = document.getElementById('count');
+        const messageDiv = document.getElementById('message');
         
-        this.setButtonLoading(submitBtn, true);
-
-        try {
-            const response = await fetch('/dissmissal/api/mobile/parent-arrival/', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.showSuccess(data.message || 'Parent arrival logged successfully');
-                form.reset();
-                document.getElementById('dismissal-code').focus();
-                this.updateRecentArrivals();
-            } else {
-                this.showError(data.error || 'Failed to log parent arrival');
-            }
-        } catch (error) {
-            this.showError('Network error. Please check your connection.');
-        } finally {
-            this.setButtonLoading(submitBtn, false);
-        }
-    }
-
-    async completePickup(card) {
-        const studentId = card.dataset.studentId;
-        
-        try {
-            const response = await fetch('/dissmissal/api/mobile/complete-pickup/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({ student_id: studentId })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Animate card removal
-                card.classList.add('completed');
-                setTimeout(() => {
-                    card.remove();
-                    this.updatePendingCount();
-                }, 300);
-                
-                this.showSuccess(data.message);
-            } else {
-                // Reset card position
-                card.style.transform = 'translateX(0)';
-                card.classList.remove('swiping', 'ready-to-complete');
-                this.showError(data.error);
-            }
-        } catch (error) {
-            card.style.transform = 'translateX(0)';
-            card.classList.remove('swiping', 'ready-to-complete');
-            this.showError('Network error. Please try again.');
-        }
-    }
-
-    startStudentsPolling() {
-        const pollStudents = async () => {
+        async function loadStudents() {
             try {
-                const response = await fetch('/dissmissal/api/mobile/pending-students/');
+                const response = await fetch('/dissmissal/api/releaser-data/');
+                const data = await response.json();
+                
+                countEl.textContent = data.students.length;
+                
+                if (data.students.length === 0) {
+                    studentsList.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                
+                studentsList.innerHTML = data.students.map(student => `
+                    <div class="student-card">
+                        <div class="student-name">${student.name}</div>
+                        <div class="student-details">
+                            Code: ${student.code} • Grade ${student.grade}
+                        </div>
+                        <div class="arrival-time">Arrived at ${student.arrived_at}</div>
+                        <button class="complete-btn" onclick="completePickup(${student.id}, this)">
+                            COMPLETE PICKUP
+                        </button>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Failed to load students:', error);
+            }
+        }
+        
+        async function completePickup(studentId, button) {
+            button.disabled = true;
+            button.textContent = 'COMPLETING...';
+            
+            try {
+                const response = await fetch('/dissmissal/api/complete-pickup/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `student_id=${studentId}`
+                });
+                
                 const data = await response.json();
                 
                 if (data.success) {
-                    this.updateStudentsList(data.students);
+                    showMessage(data.message, 'success');
+                    button.closest('.student-card').remove();
+                    loadStudents(); // Refresh count
+                } else {
+                    showMessage(data.message, 'error');
+                    button.disabled = false;
+                    button.textContent = 'COMPLETE PICKUP';
                 }
             } catch (error) {
-                console.error('Polling error:', error);
+                showMessage('Network error. Try again.', 'error');
+                button.disabled = false;
+                button.textContent = 'COMPLETE PICKUP';
             }
-        };
-
-        // Initial load
-        pollStudents();
-        
-        // Set up polling
-        setInterval(pollStudents, this.config.pollInterval);
-    }
-
-    updateStudentsList(students) {
-        const container = document.getElementById('students-list');
-        const emptyState = document.getElementById('empty-state');
-        
-        if (students.length === 0) {
-            container.innerHTML = '';
-            emptyState.style.display = 'block';
-            return;
         }
-
-        emptyState.style.display = 'none';
         
-        // Sort by arrival timestamp
-        students.sort((a, b) => new Date(a.status_updated_at) - new Date(b.status_updated_at));
-        
-        const existingCards = Array.from(container.querySelectorAll('.student-card'));
-        const existingIds = existingCards.map(card => card.dataset.studentId);
-        
-        // Remove cards for students no longer pending
-        existingCards.forEach(card => {
-            const studentId = card.dataset.studentId;
-            if (!students.find(s => s.id.toString() === studentId)) {
-                card.remove();
-            }
-        });
-        
-        // Add new cards
-        students.forEach(student => {
-            if (!existingIds.includes(student.id.toString())) {
-                const cardHtml = this.createStudentCard(student);
-                container.insertAdjacentHTML('beforeend', cardHtml);
-            }
-        });
-        
-        this.updatePendingCount();
-    }
-
-    createStudentCard(student) {
-        const arrivalTime = new Date(student.status_updated_at);
-        const timeString = arrivalTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
-        return `
-            <div class="student-card touchable" data-student-id="${student.id}">
-                <div class="student-info">
-                    <div class="student-name">${student.name}</div>
-                    <div class="student-details">
-                        <span class="code">${student.dismissal_code}</span>
-                        <span class="grade">Grade ${student.grade}</span>
-                    </div>
-                    <div class="arrival-time">Arrived at ${timeString}</div>
-                </div>
-                <div class="swipe-action">
-                    <span>✓</span>
-                </div>
-            </div>
-        `;
-    }
-
-    // Utility methods
-    formatDismissalCode(e) {
-        let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (value.length > 8) value = value.substring(0, 8);
-        e.target.value = value;
-    }
-
-    setButtonLoading(button, loading) {
-        const textSpan = button.querySelector('.btn-text');
-        const loadingSpan = button.querySelector('.btn-loading');
-        
-        if (loading) {
-            textSpan.style.display = 'none';
-            loadingSpan.style.display = 'inline-flex';
-            button.disabled = true;
-        } else {
-            textSpan.style.display = 'inline';
-            loadingSpan.style.display = 'none';
-            button.disabled = false;
+        function showMessage(text, type) {
+            messageDiv.className = 'message ' + type;
+            messageDiv.textContent = text;
+            setTimeout(() => messageDiv.textContent = '', 3000);
         }
-    }
-
-    showSuccess(message) {
-        this.showMessage(message, 'success');
-    }
-
-    showError(message) {
-        this.showMessage(message, 'error');
-    }
-
-    showMessage(message, type) {
-        const container = document.getElementById('messages-container');
-        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
         
-        const alertHtml = `
-            <div class="mobile-alert ${alertClass}">
-                <span class="message">${message}</span>
-                <button class="close-btn" onclick="this.parentElement.remove()">×</button>
-            </div>
-        `;
+        // Add CSRF token
+        const csrfToken = '{{ csrf_token }}';
+        const meta = document.createElement('meta');
+        meta.name = 'csrfmiddlewaretoken';
+        meta.value = csrfToken;
+        document.head.appendChild(meta);
         
-        container.insertAdjacentHTML('afterbegin', alertHtml);
-        
-        // Auto-dismiss after 4 seconds
-        setTimeout(() => {
-            const alert = container.querySelector('.mobile-alert');
-            if (alert) alert.remove();
-        }, 4000);
-    }
-
-    getCsrfToken() {
-        const token = document.querySelector('[name=csrfmiddlewaretoken]');
-        return token ? token.value : '';
-    }
-}
-
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    new OpenDismissalMobile();
-});
+        // Load initially and refresh every 10 seconds
+        loadStudents();
+        setInterval(loadStudents, 10000);
+    </script>
+</body>
+</html>
 ```
 
-#### Phase 5: Real-time Updates Implementation
+#### Phase 3: No Separate CSS Needed
+**All styles inline in templates for simplicity and speed**
+- No external CSS files to load
+- Faster page loads
+- Everything self-contained
+- No build process needed
 
-##### 5.1 Server-Sent Events (Alternative to WebSockets)
-**File**: `dissmissal/api.py`
+#### Phase 4: No Separate JavaScript Files
+**All JavaScript inline in templates for simplicity**
+- No external JS files to load
+- Faster page loads
+- No complex touch gesture libraries
+- **Simple tap-to-complete instead of swipe** (more reliable)
+- Self-contained and bulletproof
 
-```python
-from django.http import StreamingHttpResponse
-import json
-import time
 
-@login_required
-def realtime_updates_api(request):
-    """Server-sent events endpoint for real-time updates"""
-    def event_stream():
-        last_update = timezone.now()
-        
-        while True:
-            # Check for new events since last update
-            recent_events = PickupEvent.objects.filter(
-                timestamp__gt=last_update
-            ).select_related('student')
-            
-            if recent_events.exists():
-                for event in recent_events:
-                    data = {
-                        'type': event.event_type,
-                        'student': {
-                            'id': event.student.id,
-                            'name': event.student.name,
-                            'dismissal_code': event.student.dismissal_code,
-                            'current_status': event.student.current_status,
-                        },
-                        'timestamp': event.timestamp.isoformat(),
-                    }
-                    
-                    yield f"data: {json.dumps(data)}\n\n"
-                
-                last_update = timezone.now()
-            
-            time.sleep(2)  # Poll every 2 seconds
-    
-    response = StreamingHttpResponse(
-        event_stream(),
-        content_type='text/event-stream'
-    )
-    response['Cache-Control'] = 'no-cache'
-    response['Connection'] = 'keep-alive'
-    return response
-```
-
-##### 5.2 Enhanced JavaScript for Real-time Updates
-
-```javascript
-// Add to mobile.js
-setupServerSentEvents() {
-    if (typeof EventSource !== 'undefined') {
-        const eventSource = new EventSource('/dissmissal/api/mobile/realtime-updates/');
-        
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            
-            if (data.type === 'PARENT_ARRIVED') {
-                this.addNewStudentToQueue(data.student);
-                this.showSuccess(`${data.student.name} parent has arrived`);
-            } else if (data.type === 'STUDENT_PICKED_UP') {
-                this.removeStudentFromQueue(data.student.id);
-            }
-        };
-        
-        eventSource.onerror = () => {
-            // Fall back to polling if SSE fails
-            this.startStudentsPolling();
-        };
-    } else {
-        // Fallback for browsers without SSE support
-        this.startStudentsPolling();
-    }
-}
-```
+#### Phase 5: Simple Polling Only
+**No complex real-time needed**
+- Releaser refreshes every 10 seconds automatically
+- Network resilient with retry logic
+- Works with poor outdoor connectivity
+- No SSE, WebSockets, or complex streaming
 
 ### Implementation Timeline
 
@@ -840,4 +563,20 @@ setupServerSentEvents() {
 - **User Training**: Staff orientation sessions
 - **Fallback Plan**: Maintain existing interfaces during transition
 
-This implementation plan provides a comprehensive roadmap for delivering mobile-first interfaces that will significantly improve the user experience for staff members using the OpenDismissal system on smartphones during student dismissal periods.
+### Why This Approach Works
+
+#### Dead Simple = Bulletproof
+- **No complex dependencies** that can break
+- **No network timing issues** with real-time features
+- **No gesture complexity** that confuses under pressure
+- **Fast loading** even on poor cellular connections
+- **Clear feedback** so staff know what happened
+
+#### Optimized for Outdoor Dismissal Reality
+- Large touch targets work with gloves
+- High contrast text readable in sunlight
+- Simple workflows don't require training
+- Network resilient for poor cellular coverage
+- Battery efficient (no complex polling/animations)
+
+This simplified approach delivers exactly what's needed: **reliable, fast, mobile interfaces that work flawlessly during the stressful dismissal period.**
