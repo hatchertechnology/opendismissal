@@ -300,7 +300,7 @@ const OpenDismissal = {
     setupServiceWorker() {
         // Register service worker for offline functionality
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/static/sw.js').then(function(registration) {
+            navigator.serviceWorker.register('/sw.js').then(function(registration) {
                 console.log('OpenDismissal Service Worker registered successfully');
                 
                 // Listen for service worker updates

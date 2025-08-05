@@ -305,6 +305,21 @@
             icon.className = 'bi bi-arrow-clockwise spin me-1';
             refreshBtn.disabled = true;
             
+            // Error handling for missing config or endpoint
+            if (
+                !window.OpenDismissalConfig ||
+                !window.OpenDismissalConfig.apiEndpoints ||
+                !window.OpenDismissalConfig.apiEndpoints.status
+            ) {
+                console.error('OpenDismissalConfig or status endpoint is not defined.');
+                showMessage('Dashboard configuration error: Unable to refresh data.', 'error');
+                // Reset refresh button
+                icon.className = 'bi bi-arrow-clockwise me-1';
+                refreshBtn.disabled = false;
+                startRefreshCountdown();
+                return;
+            }
+            
             fetch(window.OpenDismissalConfig.apiEndpoints.status, {
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'

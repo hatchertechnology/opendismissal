@@ -17,6 +17,17 @@
     --od-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* iOS-specific fixes to prevent zoom on input focus */
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+input[type="number"], 
+input[type="tel"], 
+textarea, 
+select {
+    font-size: 16px !important; /* Prevents iOS zoom */
+}
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
     :root {
