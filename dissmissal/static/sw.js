@@ -4,7 +4,7 @@
  * Author: Nathan Clarke
  */
 
-const CACHE_NAME = 'opendismissal-v1';
+const CACHE_NAME = 'opendismissal-' + Date.now();
 const urlsToCache = [
     // Core application assets
     '/static/dissmissal/css/main.css',

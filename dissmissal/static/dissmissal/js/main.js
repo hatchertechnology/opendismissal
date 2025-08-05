@@ -9,7 +9,11 @@ const OpenDismissal = {
     config: {
         refreshInterval: 30000, // 30 seconds
         apiTimeout: 10000, // 10 seconds
-        maxRetries: 3
+        maxRetries: 3,
+        apiEndpoints: {
+            validateCode: '/dissmissal/api/validate-code/',
+            status: '/dissmissal/api/status/'
+        }
     },
     
     // Utility functions
@@ -164,23 +168,28 @@ const OpenDismissal = {
         },
         
         async validateDismissalCode(code) {
-            return this.request('/dissmissal/api/validate-code/', {
+            return this.request(OpenDismissal.config.apiEndpoints.validateCode, {
                 method: 'POST',
                 body: `code=${encodeURIComponent(code)}`
             });
         },
         
         async getDashboardStatus() {
-            return this.request('/dissmissal/api/status/');
+            return this.request(OpenDismissal.config.apiEndpoints.status);
         },
         
         async refreshDashboard() {
-            return this.request('/dissmissal/api/status/');
+            return this.request(OpenDismissal.config.apiEndpoints.status);
         }
     },
     
     // Initialize application
     init() {
+        // Merge configuration from template if available
+        if (window.OpenDismissalConfig) {
+            this.config = { ...this.config, ...window.OpenDismissalConfig };
+        }
+        
         this.setupGlobalEventListeners();
         this.setupServiceWorker();
         this.setupNetworkMonitoring();

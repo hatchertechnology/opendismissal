@@ -305,7 +305,7 @@
             icon.className = 'bi bi-arrow-clockwise spin me-1';
             refreshBtn.disabled = true;
             
-            fetch(apiStatusUrl, {
+            fetch(window.OpenDismissalConfig.apiEndpoints.status, {
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
                 }

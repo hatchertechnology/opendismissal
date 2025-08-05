@@ -201,6 +201,16 @@
         </footer>
         <!-- JavaScript -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- API URL Configuration for JavaScript -->
+        <script>
+        window.OpenDismissalConfig = {
+            apiEndpoints: {
+                validateCode: "{% url 'dissmissal:api_validate_code' %}",
+                status: "{% url 'dissmissal:api_status' %}"
+            },
+            csrfToken: "{{ csrf_token }}"
+        };
+        </script>
         <script src="{% static 'dissmissal/js/main.js' %}"></script>
         {% block extra_js %}{% endblock %}
         <!-- Global error handling -->
