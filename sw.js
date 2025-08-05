@@ -233,6 +233,12 @@ self.addEventListener('fetch', function(event) {
 
 // Clear any stored data on message from main thread
 self.addEventListener('message', function(event) {
+    // Verify the origin of the message for security
+    if (event.origin && event.origin !== self.location.origin) {
+        console.warn('OpenDismissal Service Worker: Message from untrusted origin:', event.origin);
+        return;
+    }
+    
     if (event.data && event.data.type === 'CLEAR_ALL_CACHES') {
         console.log('OpenDismissal Service Worker: Clearing all caches on request');
         event.waitUntil(
@@ -244,7 +250,9 @@ self.addEventListener('message', function(event) {
                 );
             }).then(function() {
                 // Notify main thread that caches are cleared
-                event.ports[0].postMessage({success: true});
+                if (event.ports && event.ports[0]) {
+                    event.ports[0].postMessage({success: true});
+                }
             })
         );
     }
