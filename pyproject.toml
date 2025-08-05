@@ -24,6 +24,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "djlint>=1.36.4",
+    "pysonar>=1.1.0.2035",
     "ruff>=0.12.7",
 ]
 
@@ -35,3 +36,9 @@ line-length = 100
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
+
+
+[tool.sonar]
+projectKey=hatchertechnology_opendismissal
+projectName=OpenDismissal
+sonar.exclusions=**/tests/*test*.py,**/**/commands/generate_demo_data.py

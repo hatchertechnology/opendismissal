@@ -73,3 +73,9 @@ Though out of scope for the MVP, don't make any design decisions that would make
 - Google-style docstrings for functions/classes
 - Unit tests required for all new functionality
 - Dismissal django project should be maintained in a way to make it a reusable Django app.
+
+
+## Code Safety
+
+[SonarQube](https://sonarcloud.io/project/overview?id=hatchertechnology_opendismissal) is used to monitor code quality and security. All new code must maintain or improve the current SonarQube rating.
+
