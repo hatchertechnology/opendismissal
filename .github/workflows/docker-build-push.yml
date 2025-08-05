@@ -1,0 +1,120 @@
+name: Build and Push to DOCR
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: registry.digitalocean.com
+  IMAGE_NAME: opendismissal/opendismissal
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Login to DigitalOcean Container Registry
+      run: doctl registry login --expiry-seconds 1200
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Save DigitalOcean kubeconfig
+      run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ${{ secrets.CLUSTER_NAME }}
+
+    - name: Create DOCR secret in Kubernetes
+      run: |
+        # Create registry secret using doctl
+        kubectl create secret docker-registry docr-secret \
+          --docker-server=registry.digitalocean.com \
+          --docker-username=$(doctl auth list --format Name --no-header) \
+          --docker-password=$(doctl auth list --format Token --no-header) \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy to staging
+      run: |
+        # Update image in deployment
+        kubectl set image deployment/opendismissal opendismissal=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/opendismissal --timeout=300s
+        
+        # Verify deployment
+        kubectl get pods -l app=opendismissal
+
+    - name: Run health check
+      run: |
+        # Wait for service to be ready
+        sleep 30
+        
+        # Get service endpoint (adjust based on your ingress setup)
+        SERVICE_IP=$(kubectl get svc opendismissal-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        
+        if [ -n "$SERVICE_IP" ]; then
+          echo "Testing health endpoint..."
+          curl -f http://$SERVICE_IP/admin/login/ || exit 1
+        else
+          echo "Service IP not available, skipping external health check"
+        fi

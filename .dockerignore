@@ -1,0 +1,124 @@
+# Development files and directories
+.env
+.env.*
+.venv/
+venv/
+.python-version
+
+# Git and version control
+.git/
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing and coverage
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Local database files
+*.sqlite3
+*.db
+db.sqlite3
+
+# Local log files (production logs should go to stdout/stderr)
+logs/
+*.log
+
+# Static files (will be collected during build)
+staticfiles/
+media/
+
+# Documentation and plans (not needed in production)
+README.md
+docs/
+plans/
+*.md
+feedback.md
+
+# GitHub and CI/CD files
+.github/
+.travis.yml
+.gitlab-ci.yml
+circle.yml
+appveyor.yml
+
+# Docker files (avoid recursive copying)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Node.js (if any frontend assets)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Investigation and test files
+investigate_*.py
+test_*.py
+
+# Service worker (frontend specific)
+sw.js
+
+# SonarQube files
+.scannerwork/
+sonar-project.properties
+
+# UV lock file (will be handled during build)
+# uv.lock - keeping this as we need it for exact dependency resolution

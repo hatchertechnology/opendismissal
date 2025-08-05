@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opendismissal
+  labels:
+    app: opendismissal
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: opendismissal
+  template:
+    metadata:
+      labels:
+        app: opendismissal
+    spec:
+      containers:
+      - name: opendismissal
+        image: registry.digitalocean.com/opendismissal/opendismissal:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DEBUG
+          value: "False"
+        - name: ALLOWED_HOSTS
+          value: "*"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: opendismissal-secrets
+              key: database-url
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: opendismissal-secrets
+              key: secret-key
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: opendismissal-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /admin/login/
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /admin/login/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: docr-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opendismissal-service
+  labels:
+    app: opendismissal
+spec:
+  selector:
+    app: opendismissal
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opendismissal-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  tls:
+  - hosts:
+    - your-domain.com  # Replace with actual domain
+    secretName: opendismissal-tls
+  rules:
+  - host: your-domain.com  # Replace with actual domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: opendismissal-service
+            port:
+              number: 80
