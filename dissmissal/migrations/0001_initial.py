@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
                         auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
                     ),
                 ),
-                ("name", models.CharField(help_text="Full student name", max_length=100)),
+                ("name", models.CharField(help_text="Student's full name", max_length=100)),
                 (
                     "dismissal_code",
                     models.CharField(
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
                         unique=True,
                     ),
                 ),
-                ("grade", models.CharField(help_text="Student grade level", max_length=20)),
+                ("grade", models.CharField(help_text="Student's grade level", max_length=20)),
                 ("teacher", models.CharField(help_text="Homeroom teacher name", max_length=100)),
                 (
                     "is_active",
@@ -61,11 +61,12 @@ class Migration(migrations.Migration):
                 "ordering": ["name"],
                 "indexes": [
                     models.Index(fields=["dismissal_code"], name="dissmissal__dismiss_cd404d_idx"),
+                    models.Index(fields=["current_status"], name="dissmissal__current_a9127a_idx"),
+                    models.Index(fields=["grade", "teacher"], name="dissmissal__grade_23e8b4_idx"),
                     models.Index(
                         fields=["is_active", "current_status"],
                         name="dissmissal__is_acti_e2a6a1_idx",
                     ),
-                    models.Index(fields=["grade", "teacher"], name="dissmissal__grade_23e8b4_idx"),
                     models.Index(fields=["-created_at"], name="dissmissal__created_32530a_idx"),
                 ],
             },

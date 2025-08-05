@@ -64,7 +64,7 @@ class APIEndpointTests(TestCase):
 
         # Check stats
         stats = data["stats"]
-        self.assertEqual(stats["total"], 3)
+        self.assertEqual(stats["total_active"], 3)
         self.assertEqual(stats["waiting"], 1)
         self.assertEqual(stats["parent_arrived"], 1)
         self.assertEqual(stats["picked_up"], 1)
@@ -99,7 +99,7 @@ class APIEndpointTests(TestCase):
         self.assertEqual(response2.status_code, 200)
 
         data2 = json.loads(response2.content)
-        self.assertEqual(data2["stats"]["total"], 3)  # Still 3, not 4
+        self.assertEqual(data2["stats"]["total_active"], 3)  # Still 3, not 4
 
     def test_validate_dismissal_code_api_requires_login(self):
         """Test that code validation API requires authentication"""
@@ -150,7 +150,7 @@ class APIEndpointTests(TestCase):
 
         data = json.loads(response.content)
         self.assertFalse(data["valid"])
-        self.assertEqual(data["error"], "No code provided")
+        self.assertEqual(data["error"], "Dismissal code is required")
 
     def test_validate_dismissal_code_api_case_insensitive(self):
         """Test that code validation is case insensitive"""

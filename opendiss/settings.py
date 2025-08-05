@@ -13,8 +13,19 @@ from decouple import config
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security Configuration
-SECRET_KEY = config("SECRET_KEY")
+from django.core.management.utils import get_random_secret_key
+
 DEBUG = config("DEBUG", default=False, cast=bool)
+if DEBUG:
+    # Development mode - use SECRET_KEY from env or generate a random one
+    SECRET_KEY = config("SECRET_KEY", default=None)
+    if not SECRET_KEY:
+        SECRET_KEY = get_random_secret_key()
+else:
+    # Production mode - require SECRET_KEY to be explicitly set
+    SECRET_KEY = config("SECRET_KEY", default=None)
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY environment variable must be set in production.")
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost").split(",")
 
 # Application definition
@@ -35,6 +46,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.gzip.GZipMiddleware",  # Response compression for performance
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -69,15 +81,40 @@ DATABASES = {
     )
 }
 
-# Cache configuration
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
-        "KEY_PREFIX": "opendismissal",
-        "TIMEOUT": 300,  # 5 minutes default
+# Database performance optimizations
+if "postgresql" in DATABASES["default"]["ENGINE"]:
+    DATABASES["default"]["OPTIONS"] = {
+        "MAX_CONNS": 20,
+        "conn_max_age": 600,  # Connection pooling
     }
-}
+elif "sqlite" in DATABASES["default"]["ENGINE"]:
+    DATABASES["default"]["OPTIONS"] = {
+        "timeout": 20,  # Prevent database lock timeouts
+    }
+
+# Cache configuration with fallback
+try:
+    import django_redis
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+            "KEY_PREFIX": "opendismissal",
+            "TIMEOUT": 300,  # 5 minutes default
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            }
+        }
+    }
+except ImportError:
+    # Fallback to locmem cache if Redis is not available
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "opendismissal-fallback",
+            "TIMEOUT": 300,
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
