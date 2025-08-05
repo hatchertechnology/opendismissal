@@ -60,36 +60,47 @@ def log_audit_event(user, action, ip_address, details=None):
     audit_logger.info(f"User {user.username} performed {action}", extra=log_entry)
 
 
-def get_dashboard_stats():
+def get_dashboard_stats(cache_timeout=30):
     """
-    Calculate dashboard statistics for display.
+    Calculate dashboard statistics for display with independent caching.
     Used by both views and API endpoints.
+
+    Args:
+        cache_timeout: Cache timeout in seconds (default: 30s for real-time accuracy)
 
     Returns:
         dict: Statistics about current dismissal status
     """
     from .models import Student, PickupEvent
 
-    today = timezone.now().date()
+    # Independent stats caching for better performance
+    stats_cache_key = "dashboard_stats_global"
+    stats = cache.get(stats_cache_key)
+    
+    if stats is None:
+        today = timezone.now().date()
 
-    stats = {
-        "total_active": Student.objects.filter(is_active=True).count(),
-        "waiting": Student.objects.filter(is_active=True, current_status="WAITING").count(),
-        "parent_arrived": Student.objects.filter(
-            is_active=True, current_status="PARENT_ARRIVED"
-        ).count(),
-        "picked_up": Student.objects.filter(is_active=True, current_status="PICKED_UP").count(),
-        "events_today": PickupEvent.objects.filter(timestamp__date=today).count(),
-        "last_updated": timezone.now(),
-    }
+        stats = {
+            "total_active": Student.objects.filter(is_active=True).count(),
+            "waiting": Student.objects.filter(is_active=True, current_status="WAITING").count(),
+            "parent_arrived": Student.objects.filter(
+                is_active=True, current_status="PARENT_ARRIVED"
+            ).count(),
+            "picked_up": Student.objects.filter(is_active=True, current_status="PICKED_UP").count(),
+            "events_today": PickupEvent.objects.filter(timestamp__date=today).count(),
+            "last_updated": timezone.now(),
+        }
 
-    # Calculate percentages
-    if stats["total_active"] > 0:
-        stats["waiting_percent"] = round((stats["waiting"] / stats["total_active"]) * 100, 1)
-        stats["arrived_percent"] = round((stats["parent_arrived"] / stats["total_active"]) * 100, 1)
-        stats["picked_up_percent"] = round((stats["picked_up"] / stats["total_active"]) * 100, 1)
-    else:
-        stats["waiting_percent"] = stats["arrived_percent"] = stats["picked_up_percent"] = 0
+        # Calculate percentages
+        if stats["total_active"] > 0:
+            stats["waiting_percent"] = round((stats["waiting"] / stats["total_active"]) * 100, 1)
+            stats["arrived_percent"] = round((stats["parent_arrived"] / stats["total_active"]) * 100, 1)
+            stats["picked_up_percent"] = round((stats["picked_up"] / stats["total_active"]) * 100, 1)
+        else:
+            stats["waiting_percent"] = stats["arrived_percent"] = stats["picked_up_percent"] = 0
+
+        # Cache stats independently from dashboard data for real-time accuracy
+        cache.set(stats_cache_key, stats, timeout=cache_timeout)
 
     return stats
 
@@ -176,13 +187,16 @@ def get_cache_key(prefix, user_id=None, **kwargs):
 
 def clear_dashboard_cache(user_id=None):
     """
-    Clear dashboard-related cache entries.
+    Clear dashboard-related cache entries with targeted approach.
 
     Args:
         user_id: Optional user ID to clear specific user cache
     """
+    # Always clear the global stats cache when dashboard data changes
+    cache.delete("dashboard_stats_global")
+    
     # Django's default cache doesn't support delete_pattern
-    # We'll implement a simple cache clearing mechanism
+    # We'll implement a targeted cache clearing mechanism
     if hasattr(cache, 'delete_pattern'):
         if user_id:
             # Clear specific user cache
@@ -192,13 +206,32 @@ def clear_dashboard_cache(user_id=None):
             # Clear all dashboard cache
             cache.delete_pattern("dashboard_*")
     else:
-        # Fallback for caches that don't support pattern deletion
-        # This is less efficient but works with all cache backends
+        # Targeted fallback - clear common dashboard cache keys instead of cache.clear()
         if user_id:
-            # Try to clear common cache keys for the user
-            cache.delete(get_cache_key("dashboard", user_id=user_id))
-        # For now, we'll clear the entire cache as a safe fallback
-        cache.clear()
+            # Clear common dashboard cache keys for the specific user
+            common_filters = [
+                ("all", "all", ""),
+                ("WAITING", "all", ""), 
+                ("PARENT_ARRIVED", "all", ""),
+                ("PICKED_UP", "all", ""),
+            ]
+            for status, grade, search in common_filters:
+                cache_key = generate_dashboard_cache_key(user_id, status, grade, search)
+                cache.delete(cache_key)
+        else:
+            # Clear common dashboard cache keys for all users (up to reasonable limit)
+            # Note: This approach is more targeted than cache.clear() but may not catch all keys
+            # Consider using a cache backend that supports pattern deletion for full coverage
+            for user_idx in range(1, 101):  # Assume max 100 concurrent users for cache clearing
+                common_filters = [
+                    ("all", "all", ""),
+                    ("WAITING", "all", ""),
+                    ("PARENT_ARRIVED", "all", ""),
+                    ("PICKED_UP", "all", ""),
+                ]
+                for status, grade, search in common_filters:
+                    cache_key = generate_dashboard_cache_key(user_idx, status, grade, search)
+                    cache.delete(cache_key)
 
 
 def sanitize_input(text, max_length=None):

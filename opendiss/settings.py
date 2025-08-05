@@ -13,13 +13,19 @@ from decouple import config
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security Configuration
+from django.core.management.utils import get_random_secret_key
+
 DEBUG = config("DEBUG", default=False, cast=bool)
 if DEBUG:
-    # Development mode - allow default SECRET_KEY
-    SECRET_KEY = config("SECRET_KEY", default="django-insecure-k7vno7*j@93zn&k@l90$4n%*664v7s2)0q=pi7ve!r*=07h+ay")
+    # Development mode - use SECRET_KEY from env or generate a random one
+    SECRET_KEY = config("SECRET_KEY", default=None)
+    if not SECRET_KEY:
+        SECRET_KEY = get_random_secret_key()
 else:
     # Production mode - require SECRET_KEY to be explicitly set
-    SECRET_KEY = config("SECRET_KEY")
+    SECRET_KEY = config("SECRET_KEY", default=None)
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY environment variable must be set in production.")
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost").split(",")
 
 # Application definition
