@@ -97,12 +97,7 @@ function createErrorResponse(url, error) {
         );
     }
     
-    // For static resources (CSS, JS, images), let them fail naturally
-    if (url.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$/i)) {
-        throw error;
-    }
-    
-    // For all other requests, let them fail naturally
+    // For static resources and all other requests, let them fail naturally
     throw error;
 }
 

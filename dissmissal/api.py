@@ -25,6 +25,7 @@ audit_logger = logging.getLogger("dissmissal.audit")
 # Constants for repeated strings
 CACHE_CONTROL_NO_CACHE = "no-cache, no-store, must-revalidate"
 ERROR_INVALID_REQUEST_FORMAT = "Invalid request format"
+ERROR_INVALID_REQUEST_DATA = "Invalid request data. Please try again."
 
 
 def _get_latest_event_data(latest_event):
@@ -603,7 +604,7 @@ def greeter_submit_api(request):
             },
         )
         return JsonResponse(
-            {"success": False, "message": "Invalid request data. Please try again."}
+            {"success": False, "message": ERROR_INVALID_REQUEST_DATA}
         )
     except Exception as e:
         audit_logger.error(
@@ -724,7 +725,7 @@ def complete_pickup_api(request):
             },
         )
         return JsonResponse(
-            {"success": False, "message": "Invalid request data. Please try again."}
+            {"success": False, "message": ERROR_INVALID_REQUEST_DATA}
         )
     except Exception as e:
         audit_logger.error(
