@@ -82,9 +82,7 @@ def dashboard_view(request):
         students = students_query.prefetch_related(
             models.Prefetch(
                 "pickup_events",
-                queryset=PickupEvent.objects.select_related("staff_member").order_by("-timestamp")[
-                    :3
-                ],
+                queryset=PickupEvent.objects.select_related("staff_member").order_by("-timestamp"),
             )
         ).order_by("name")
 

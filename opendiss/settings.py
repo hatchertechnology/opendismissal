@@ -35,6 +35,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.gzip.GZipMiddleware",  # Response compression for performance
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -69,15 +70,40 @@ DATABASES = {
     )
 }
 
-# Cache configuration
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
-        "KEY_PREFIX": "opendismissal",
-        "TIMEOUT": 300,  # 5 minutes default
+# Database performance optimizations
+if "postgresql" in DATABASES["default"]["ENGINE"]:
+    DATABASES["default"]["OPTIONS"] = {
+        "MAX_CONNS": 20,
+        "conn_max_age": 600,  # Connection pooling
     }
-}
+elif "sqlite" in DATABASES["default"]["ENGINE"]:
+    DATABASES["default"]["OPTIONS"] = {
+        "timeout": 20,  # Prevent database lock timeouts
+    }
+
+# Cache configuration with fallback
+try:
+    import django_redis
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+            "KEY_PREFIX": "opendismissal",
+            "TIMEOUT": 300,  # 5 minutes default
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            }
+        }
+    }
+except ImportError:
+    # Fallback to locmem cache if Redis is not available
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "opendismissal-fallback",
+            "TIMEOUT": 300,
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

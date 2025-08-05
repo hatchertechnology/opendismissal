@@ -98,9 +98,7 @@ class Student(models.Model):
 
     def save(self, *args, **kwargs):
         """Auto-generate dismissal code if not provided and validate data"""
-        self.full_clean()
-
-        # Generate dismissal code if not provided
+        # Generate dismissal code if not provided (before validation)
         if not self.dismissal_code:
             self.dismissal_code = self.generate_dismissal_code()
 
@@ -108,6 +106,9 @@ class Student(models.Model):
         self.name = self.name.strip().title()
         self.teacher = self.teacher.strip().title()
         self.grade = self.grade.strip()
+
+        # Validate after setting required fields
+        self.full_clean()
 
         super().save(*args, **kwargs)
 

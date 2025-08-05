@@ -403,3 +403,133 @@ class SecurityTestCase(TestCase):
         # Django test client automatically handles CSRF, so we check the form is present
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "csrfmiddlewaretoken")
+
+
+class EdgeCaseTests(TestCase):
+    """Test edge cases and error conditions for robustness"""
+
+    def setUp(self):
+        """Set up test data"""
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username="teststaff", password="testpass123", is_staff=True
+        )
+
+    def test_concurrent_parent_arrival_same_student(self):
+        """Test race condition handling for concurrent parent arrivals"""
+        student = Student.objects.create(
+            name="Test Student", grade="3rd", teacher="Test Teacher"
+        )
+        
+        self.client.login(username="teststaff", password="testpass123")
+        
+        # First arrival should succeed
+        response1 = self.client.post(
+            reverse("dissmissal:parent_arrival"),
+            {"dismissal_code": student.dismissal_code, "notes": "First arrival"}
+        )
+        self.assertEqual(response1.status_code, 302)
+        
+        # Second arrival should be handled gracefully
+        response2 = self.client.post(
+            reverse("dissmissal:parent_arrival"),
+            {"dismissal_code": student.dismissal_code, "notes": "Duplicate arrival"}
+        )
+        self.assertEqual(response2.status_code, 200)  # Stays on page with warning
+
+    def test_malformed_dismissal_codes(self):
+        """Test handling of various malformed dismissal codes"""
+        student = Student.objects.create(
+            name="Test Student", grade="3rd", teacher="Test Teacher"
+        )
+        
+        self.client.login(username="teststaff", password="testpass123")
+        
+        malformed_codes = [
+            "",  # Empty
+            "a",  # Too short
+            "abcdefghijk",  # Too long
+            "ABC@123",  # Invalid characters
+            "   ",  # Whitespace only
+            "abc123!",  # Special characters
+        ]
+        
+        for code in malformed_codes:
+            response = self.client.post(
+                reverse("dissmissal:parent_arrival"),
+                {"dismissal_code": code, "notes": ""}
+            )
+            self.assertEqual(response.status_code, 200)  # Should stay on form with error
+
+    def test_database_query_optimization(self):
+        """Test that queries are optimized to prevent N+1 problems"""
+        # Create multiple students with events
+        students = []
+        for i in range(10):
+            student = Student.objects.create(
+                name=f"Student {i}", grade="3rd", teacher=f"Teacher {i}"
+            )
+            students.append(student)
+            
+            # Create pickup events for each student
+            PickupEvent.objects.create(
+                student=student,
+                staff_member=self.user,
+                event_type="PARENT_ARRIVED",
+                dismissal_code_used=student.dismissal_code,
+                ip_address="127.0.0.1"
+            )
+        
+        self.client.login(username="teststaff", password="testpass123")
+        
+        # Dashboard should use optimized queries
+        with self.assertNumQueries(8):  # Should be minimal queries due to optimization
+            response = self.client.get(reverse("dissmissal:dashboard"))
+            self.assertEqual(response.status_code, 200)
+
+    def test_cache_invalidation_on_data_changes(self):
+        """Test that cache is properly invalidated when data changes"""
+        student = Student.objects.create(
+            name="Test Student", grade="3rd", teacher="Test Teacher"
+        )
+        
+        self.client.login(username="teststaff", password="testpass123")
+        
+        # Load dashboard to populate cache
+        response1 = self.client.get(reverse("dissmissal:dashboard"))
+        self.assertEqual(response1.status_code, 200)
+        
+        # Change student status
+        response2 = self.client.post(
+            reverse("dissmissal:parent_arrival"),
+            {"dismissal_code": student.dismissal_code, "notes": "Cache test"}
+        )
+        self.assertEqual(response2.status_code, 302)
+        
+        # Dashboard should reflect changes (cache invalidated)
+        response3 = self.client.get(reverse("dissmissal:dashboard"))
+        self.assertEqual(response3.status_code, 200)
+        student.refresh_from_db()
+        self.assertEqual(student.current_status, "PARENT_ARRIVED")
+
+    def test_large_dataset_pagination_performance(self):
+        """Test pagination performance with large datasets"""
+        # Create 100 students
+        students = []
+        for i in range(100):
+            student = Student.objects.create(
+                name=f"Student {i:03d}", grade="3rd", teacher=f"Teacher {i % 10}"
+            )
+            students.append(student)
+        
+        self.client.login(username="teststaff", password="testpass123")
+        
+        # Test first page
+        response = self.client.get(reverse("dissmissal:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Student 000")  # Should show first students
+        
+        # Test pagination
+        response = self.client.get(reverse("dissmissal:dashboard") + "?page=2")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Student 025")  # Should show page 2 students

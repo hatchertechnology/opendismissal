@@ -309,13 +309,11 @@ def get_student_query_optimized():
     Returns:
         QuerySet: Optimized Student queryset
     """
-    from .models import Student
+    from .models import Student, PickupEvent
 
     return Student.objects.select_related().prefetch_related(
         models.Prefetch(
             "pickup_events",
-            queryset=lambda: __import__("dissmissal.models", fromlist=["PickupEvent"])
-            .PickupEvent.objects.select_related("staff_member")
-            .order_by("-timestamp")[:3],
+            queryset=PickupEvent.objects.select_related("staff_member").order_by("-timestamp"),
         )
     )

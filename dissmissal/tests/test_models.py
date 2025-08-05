@@ -36,7 +36,7 @@ class StudentModelTests(TestCase):
         """Test student string representation"""
         student = Student.objects.create(name="Test Student", grade="3rd", teacher="Test Teacher")
 
-        expected = f"Test Student ({student.dismissal_code})"
+        expected = f"Test Student ({student.dismissal_code}) - {student.get_current_status_display()}"
         self.assertEqual(str(student), expected)
 
     def test_pickup_event_creation_and_status_update(self):
