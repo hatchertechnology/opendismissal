@@ -11,9 +11,10 @@
             <p class="text-muted mb-0">Real-time view of student dismissal status</p>
         </div>
         <div class="col-auto">
-            <div class="btn-group-vertical btn-group-sm d-none d-md-block me-2" role="group">
+            <fieldset class="btn-group-vertical btn-group-sm d-none d-md-block me-2">
+                <legend class="visually-hidden">Mobile Interface Options</legend>
                 <div class="small text-muted mb-1 text-center">📱 Mobile Interfaces</div>
-                <div class="btn-group" role="group">
+                <div class="btn-group">
                     <a href="{% url 'dissmissal:greeter_mobile' %}"
                        class="btn btn-outline-info btn-sm"
                        data-bs-toggle="tooltip"
@@ -31,8 +32,8 @@
                         Releaser
                     </a>
                 </div>
-            </div>
-            <div class="btn-group" role="group">
+            </fieldset>
+            <div class="btn-group">
                 <a href="{% url 'dissmissal:parent_arrival' %}"
                    class="btn btn-primary btn-mobile">
                     <i class="bi bi-person-plus me-1"></i>
@@ -153,9 +154,9 @@
                            value="{{ current_filters.search }}">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">&nbsp;</label>
+                    <label for="filter-submit-btn" class="form-label visually-hidden">Apply filters</label>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-outline-primary">
+                        <button type="submit" id="filter-submit-btn" class="btn btn-outline-primary">
                             <i class="bi bi-search me-1"></i>
                             Filter
                         </button>
@@ -174,8 +175,9 @@
             <div class="d-flex align-items-center">
                 <button id="refresh-btn"
                         class="btn btn-sm btn-outline-secondary me-2"
-                        onclick="refreshDashboard()">
-                    <i class="bi bi-arrow-clockwise me-1"></i>
+                        onclick="refreshDashboard()"
+                        aria-label="Refresh dashboard data">
+                    <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
                     Refresh
                 </button>
                 <small class="text-muted">
@@ -213,13 +215,15 @@
                                     <td class="d-none d-md-table-cell">{{ student.grade }}</td>
                                     <td class="d-none d-lg-table-cell">{{ student.teacher }}</td>
                                     <td>
-                                        <span class="badge bg-{% if student.current_status == 'WAITING' %}warning{% elif student.current_status == 'PARENT_ARRIVED' %}info{% else %}success{% endif %}">
+                                        <span class="badge bg-{% if student.current_status == 'WAITING' %}warning{% elif student.current_status == 'PARENT_ARRIVED' %}info{% else %}success{% endif %}"
+                                              role="status"
+                                              aria-label="Student status: {% if student.current_status == 'WAITING' %}Waiting for parent{% elif student.current_status == 'PARENT_ARRIVED' %}Parent has arrived{% else %}Student picked up{% endif %}">
                                             {% if student.current_status == 'WAITING' %}
-                                                <i class="bi bi-clock me-1"></i>Waiting
+                                                <i class="bi bi-clock me-1" aria-hidden="true"></i>Waiting
                                             {% elif student.current_status == 'PARENT_ARRIVED' %}
-                                                <i class="bi bi-person-check me-1"></i>Parent Here
+                                                <i class="bi bi-person-check me-1" aria-hidden="true"></i>Parent Here
                                             {% else %}
-                                                <i class="bi bi-check-circle me-1"></i>Picked Up
+                                                <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Picked Up
                                             {% endif %}
                                         </span>
                                     </td>
@@ -227,13 +231,14 @@
                                         <code class="user-select-all">{{ student.dismissal_code }}</code>
                                     </td>
                                     <td>
-                                        <div class="btn-group-sm" role="group">
+                                        <div class="btn-group-sm">
                                             {% if student.current_status == 'PARENT_ARRIVED' %}
                                                 <button class="btn btn-success btn-sm pickup-btn"
                                                         data-student-id="{{ student.id }}"
                                                         data-student-name="{{ student.name|escapejs }}"
-                                                        type="button">
-                                                    <i class="bi bi-check-circle me-1"></i>
+                                                        type="button"
+                                                        aria-label="Complete pickup for {{ student.name }}">
+                                                    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
                                                     <span class="d-none d-sm-inline">Complete</span>
                                                 </button>
                                             {% elif student.current_status == 'WAITING' %}
@@ -250,8 +255,9 @@
                                             {% endif %}
                                             <a href="{% url 'dissmissal:student_details' student.id %}"
                                                class="btn btn-outline-secondary btn-sm"
-                                               title="View student details">
-                                                <i class="bi bi-eye"></i>
+                                               title="View student details"
+                                               aria-label="View details for {{ student.name }}">
+                                                <i class="bi bi-eye" aria-hidden="true"></i>
                                                 <span class="d-none d-md-inline ms-1">Details</span>
                                             </a>
                                         </div>

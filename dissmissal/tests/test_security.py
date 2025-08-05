@@ -10,7 +10,6 @@ from django.test.utils import override_settings
 from dissmissal.models import Student, PickupEvent
 from unittest.mock import patch
 import json
-import time
 
 
 class AuthenticationSecurityTests(TestCase):
@@ -48,16 +47,10 @@ class AuthenticationSecurityTests(TestCase):
         
         for url in protected_urls:
             with self.subTest(url=url):
-                if "api" in url:
-                    # API endpoints should return 302 (redirect to login)
-                    response = self.client.get(url)
-                    self.assertEqual(response.status_code, 302)
-                    self.assertIn("/admin/login/", response.url)
-                else:
-                    # Regular views should also redirect to login
-                    response = self.client.get(url)
-                    self.assertEqual(response.status_code, 302)
-                    self.assertIn("/admin/login/", response.url)
+                # All protected endpoints should return 302 (redirect to login)
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/admin/login/", response.url)
 
     def test_non_staff_user_access(self):
         """Test that non-staff users cannot access staff-only views"""
@@ -333,7 +326,7 @@ class DataIntegritySecurityTests(TestCase):
         self.client.login(username="teststaff", password="testpass123")
         
         # Try to pick up student before parent arrives
-        response = self.client.post(reverse("dissmissal:student_pickup"), {
+        _ = self.client.post(reverse("dissmissal:student_pickup"), {
             "student": self.student.id,
             "notes": "Attempting pickup without parent arrival"
         })
@@ -386,7 +379,7 @@ class AuditLoggingSecurityTests(TestCase):
         """Test that parent arrivals are logged"""
         self.client.login(username="teststaff", password="testpass123")
         
-        response = self.client.post(reverse("dissmissal:parent_arrival"), {
+        _ = self.client.post(reverse("dissmissal:parent_arrival"), {
             "dismissal_code": self.student.dismissal_code,
             "notes": "Test audit logging"
         })
@@ -408,7 +401,7 @@ class AuditLoggingSecurityTests(TestCase):
         self.client.login(username="teststaff", password="testpass123")
         
         # Try invalid dismissal code
-        response = self.client.post(reverse("dissmissal:parent_arrival"), {
+        _ = self.client.post(reverse("dissmissal:parent_arrival"), {
             "dismissal_code": "INVALID",
             "notes": "Test failed attempt"
         })
@@ -421,7 +414,7 @@ class AuditLoggingSecurityTests(TestCase):
         self.client.login(username="teststaff", password="testpass123")
         
         # Set a specific IP address
-        response = self.client.post(
+        _ = self.client.post(
             reverse("dissmissal:parent_arrival"),
             {
                 "dismissal_code": self.student.dismissal_code,

@@ -106,15 +106,17 @@
 
                             <!-- Active Status Field -->
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">
-                                    <strong>Status</strong>
-                                </label>
-                                <div class="form-check">
-                                    {{ form.is_active }}
-                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                        Active in dismissal system
-                                    </label>
-                                </div>
+                                <fieldset>
+                                    <legend class="form-label">
+                                        <strong>Status</strong>
+                                    </legend>
+                                    <div class="form-check">
+                                        {{ form.is_active }}
+                                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                            Active in dismissal system
+                                        </label>
+                                    </div>
+                                </fieldset>
                                 {% if form.is_active.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.is_active.errors %}
@@ -125,6 +127,7 @@
                                 {% if form.is_active.help_text %}
                                     <div class="form-text">{{ form.is_active.help_text }}</div>
                                 {% endif %}
+                                </fieldset>
                             </div>
                         </div>
 
@@ -156,8 +159,9 @@
                             <code class="user-select-all">{{ student.dismissal_code }}</code>
                             <button class="btn btn-sm btn-outline-secondary ms-1" 
                                     onclick="copyToClipboard('{{ student.dismissal_code }}')"
-                                    title="Copy to clipboard">
-                                <i class="bi bi-clipboard"></i>
+                                    title="Copy to clipboard"
+                                    aria-label="Copy dismissal code {{ student.dismissal_code }} to clipboard">
+                                <i class="bi bi-clipboard" aria-hidden="true"></i>
                             </button>
                         </dd>
                         

@@ -20,11 +20,11 @@ from django.db import models
 import logging
 from .models import Student, PickupEvent
 from .forms import (
-    ParentArrivalForm, 
-    StudentPickupForm, 
-    AddStudentForm, 
-    EditStudentForm, 
-    DashboardFilterForm
+    ParentArrivalForm,
+    StudentPickupForm,
+    AddStudentForm,
+    EditStudentForm,
+    DashboardFilterForm,
 )
 from .utils import (
     get_client_ip,
@@ -38,11 +38,160 @@ from .utils import (
 audit_logger = logging.getLogger("dissmissal.audit")
 
 
+# Helper functions for reducing view complexity
+
+
+def _validate_student_status_for_arrival(student, request, dismissal_code):
+    """
+    Validate student status for parent arrival and handle appropriate responses.
+    Returns True if arrival should be processed, False otherwise.
+    """
+    if student.current_status == "PICKED_UP":
+        messages.error(request, f"{student.name} has already been picked up today.")
+        log_audit_event(
+            user=request.user,
+            action="PARENT_ARRIVAL_REJECTED",
+            ip_address=get_client_ip(request),
+            details={
+                "reason": "already_picked_up",
+                "student_id": student.id,
+                "dismissal_code": dismissal_code,
+            },
+        )
+        return False
+
+    if student.current_status == "PARENT_ARRIVED":
+        messages.warning(
+            request,
+            f"Parent arrival for {student.name} was already logged earlier.",
+        )
+        log_audit_event(
+            user=request.user,
+            action="PARENT_ARRIVAL_DUPLICATE",
+            ip_address=get_client_ip(request),
+            details={"student_id": student.id, "dismissal_code": dismissal_code},
+        )
+        return False
+
+    return True
+
+
+def _process_parent_arrival(student, request, dismissal_code, notes):
+    """
+    Process successful parent arrival and create pickup event.
+    Returns the created pickup event.
+    """
+    pickup_event = PickupEvent.objects.create(
+        student=student,
+        staff_member=request.user,
+        event_type="PARENT_ARRIVED",
+        dismissal_code_used=dismissal_code,
+        notes=notes,
+        ip_address=get_client_ip(request),
+    )
+
+    # Update student status (this is handled in PickupEvent.save())
+    student.refresh_from_db()
+
+    # Clear dashboard cache
+    clear_dashboard_cache()
+
+    # Success message and audit logging
+    messages.success(
+        request,
+        f"Parent arrival logged for {student.name} (Grade {student.grade}, {student.teacher})",
+    )
+
+    log_audit_event(
+        user=request.user,
+        action="PARENT_ARRIVAL_LOGGED",
+        ip_address=get_client_ip(request),
+        details={
+            "student_id": student.id,
+            "student_name": student.name,
+            "dismissal_code": dismissal_code,
+            "pickup_event_id": pickup_event.id,
+        },
+    )
+
+    return pickup_event
+
+
+def _handle_invalid_dismissal_code(request, dismissal_code):
+    """Handle invalid dismissal code attempts with proper error messaging and audit logging."""
+    messages.error(request, "Invalid dismissal code. Please check the code and try again.")
+    log_audit_event(
+        user=request.user,
+        action="INVALID_DISMISSAL_CODE",
+        ip_address=get_client_ip(request),
+        details={"attempted_code": dismissal_code, "reason": "student_not_found"},
+    )
+
+
+def _validate_student_status_for_pickup(student, request):
+    """
+    Validate student status for pickup completion and handle appropriate responses.
+    Returns True if pickup should be processed, False otherwise.
+    """
+    if student.current_status == "PICKED_UP":
+        messages.error(request, f"{student.name} has already been picked up.")
+        return False
+
+    if student.current_status == "WAITING":
+        messages.error(
+            request,
+            f"Parent has not arrived yet for {student.name}. Please log parent arrival first.",
+        )
+        return False
+
+    return student.current_status == "PARENT_ARRIVED"
+
+
+def _process_student_pickup(student, request, notes):
+    """
+    Process student pickup completion and create pickup event.
+    Returns the created pickup event.
+    """
+    pickup_event = PickupEvent.objects.create(
+        student=student,
+        staff_member=request.user,
+        event_type="STUDENT_PICKED_UP",
+        dismissal_code_used=student.dismissal_code,
+        notes=notes,
+        ip_address=get_client_ip(request),
+    )
+
+    # Status is updated automatically in PickupEvent.save()
+    student.refresh_from_db()
+
+    # Clear dashboard cache
+    clear_dashboard_cache()
+
+    messages.success(
+        request,
+        f"Pickup completed for {student.name}. Student has been dismissed safely.",
+    )
+
+    log_audit_event(
+        user=request.user,
+        action="STUDENT_PICKUP_COMPLETED",
+        ip_address=get_client_ip(request),
+        details={
+            "student_id": student.id,
+            "student_name": student.name,
+            "pickup_event_id": pickup_event.id,
+            "notes": notes,
+        },
+    )
+
+    return pickup_event
+
+
 @login_required
 def dashboard_view(request):
     """
     Main staff dashboard showing current dismissal status.
-    Optimized with caching and pagination for performance.  
+    Optimized with caching and pagination for performance.
     """
     # Log dashboard access for audit trail
     log_audit_event(
@@ -156,122 +305,78 @@ def parent_arrival_view(request, code=None):
     Accepts optional code parameter to pre-populate the dismissal code field.
     """
     if request.method == "POST":
-        form = ParentArrivalForm(request.POST)
+        return _handle_parent_arrival_post(request)
 
-        if form.is_valid():
-            dismissal_code = form.cleaned_data["dismissal_code"]
-            notes = form.cleaned_data.get("notes", "")
+    return _handle_parent_arrival_get(request, code)
 
-            try:
-                with transaction.atomic():
-                    # Get student with select_for_update to prevent race conditions
-                    student = Student.objects.select_for_update().get(
-                        dismissal_code=dismissal_code, is_active=True
-                    )
 
-                    # Validate current status allows parent arrival
-                    if student.current_status == "PICKED_UP":
-                        messages.error(request, f"{student.name} has already been picked up today.")
-                        log_audit_event(
-                            user=request.user,
-                            action="PARENT_ARRIVAL_REJECTED",
-                            ip_address=get_client_ip(request),
-                            details={
-                                "reason": "already_picked_up",
-                                "student_id": student.id,
-                                "dismissal_code": dismissal_code,
-                            },
-                        )
+def _handle_parent_arrival_post(request):
+    """Handle POST request for parent arrival form submission."""
+    form = ParentArrivalForm(request.POST)
 
-                    elif student.current_status == "PARENT_ARRIVED":
-                        messages.warning(
-                            request,
-                            f"Parent arrival for {student.name} was already logged earlier.",
-                        )
-                        log_audit_event(
-                            user=request.user,
-                            action="PARENT_ARRIVAL_DUPLICATE",
-                            ip_address=get_client_ip(request),
-                            details={"student_id": student.id, "dismissal_code": dismissal_code},
-                        )
+    if not form.is_valid():
+        _handle_form_validation_errors(request, form)
+        return _render_parent_arrival_page(request, form)
 
-                    else:  # Status is WAITING
-                        # Create pickup event
-                        pickup_event = PickupEvent.objects.create(
-                            student=student,
-                            staff_member=request.user,
-                            event_type="PARENT_ARRIVED",
-                            dismissal_code_used=dismissal_code,
-                            notes=notes,
-                            ip_address=get_client_ip(request),
-                        )
+    dismissal_code = form.cleaned_data["dismissal_code"]
+    notes = form.cleaned_data.get("notes", "")
 
-                        # Update student status (this is handled in PickupEvent.save())
-                        student.refresh_from_db()
+    try:
+        with transaction.atomic():
+            student = Student.objects.select_for_update().get(
+                dismissal_code=dismissal_code, is_active=True
+            )
 
-                        # Clear dashboard cache
-                        clear_dashboard_cache()
+            if not _validate_student_status_for_arrival(student, request, dismissal_code):
+                return _render_parent_arrival_page(request, form)
 
-                        # Success message and clear form for next entry
-                        messages.success(
-                            request,
-                            f"Parent arrival logged for {student.name} (Grade {student.grade}, {student.teacher})",
-                        )
+            # Status is WAITING - process the arrival
+            _process_parent_arrival(student, request, dismissal_code, notes)
+            form = ParentArrivalForm()  # Clear form for next entry
 
-                        log_audit_event(
-                            user=request.user,
-                            action="PARENT_ARRIVAL_LOGGED",
-                            ip_address=get_client_ip(request),
-                            details={
-                                "student_id": student.id,
-                                "student_name": student.name,
-                                "dismissal_code": dismissal_code,
-                                "pickup_event_id": pickup_event.id,
-                            },
-                        )
+    except Student.DoesNotExist:
+        _handle_invalid_dismissal_code(request, dismissal_code)
+    except Exception as e:
+        _handle_arrival_processing_error(request, e, dismissal_code)
 
-                        # Clear form and stay on page for quick successive entries
-                        form = ParentArrivalForm()
+    return _render_parent_arrival_page(request, form)
 
-            except Student.DoesNotExist:
-                messages.error(
-                    request, "Invalid dismissal code. Please check the code and try again."
-                )
-                log_audit_event(
-                    user=request.user,
-                    action="INVALID_DISMISSAL_CODE",
-                    ip_address=get_client_ip(request),
-                    details={"attempted_code": dismissal_code, "reason": "student_not_found"},
-                )
 
-            except Exception as e:
-                messages.error(
-                    request,
-                    "An error occurred while processing the parent arrival. Please try again.",
-                )
-                audit_logger.error(
-                    f"Parent arrival processing error: {str(e)}",
-                    extra={
-                        "user": request.user.username,
-                        "ip_address": get_client_ip(request),
-                        "dismissal_code": dismissal_code,
-                    },
-                )
+def _handle_parent_arrival_get(request, code):
+    """Handle GET request for parent arrival form display."""
+    initial_data = {}
+    if code:
+        initial_data["dismissal_code"] = code.upper()
 
-        else:
-            # Form validation errors
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f"{field}: {error}")
+    form = ParentArrivalForm(initial=initial_data)
+    return _render_parent_arrival_page(request, form)
 
-    else:
-        # Pre-populate form with code from URL parameter if provided
-        initial_data = {}
-        if code:
-            initial_data['dismissal_code'] = code.upper()
-        form = ParentArrivalForm(initial=initial_data)
 
-    # Get recent arrivals for context (last 10)
+def _handle_form_validation_errors(request, form):
+    """Handle form validation errors by adding error messages."""
+    for field, errors in form.errors.items():
+        for error in errors:
+            messages.error(request, f"{field}: {error}")
+
+
+def _handle_arrival_processing_error(request, exception, dismissal_code):
+    """Handle unexpected errors during parent arrival processing."""
+    messages.error(
+        request,
+        "An error occurred while processing the parent arrival. Please try again.",
+    )
+    audit_logger.error(
+        f"Parent arrival processing error: {str(exception)}",
+        extra={
+            "user": request.user.username,
+            "ip_address": get_client_ip(request),
+            "dismissal_code": dismissal_code,
+        },
+    )
+
+
+def _render_parent_arrival_page(request, form):
+    """Render the parent arrival page with context data."""
     recent_arrivals = (
         PickupEvent.objects.filter(
             event_type="PARENT_ARRIVED", timestamp__date=timezone.now().date()
@@ -298,87 +403,60 @@ def student_pickup_view(request, student_id=None):
         student = get_object_or_404(Student, id=student_id, is_active=True)
 
     if request.method == "POST":
-        form = StudentPickupForm(request.POST, initial_student=student)
+        return _handle_student_pickup_post(request, student)
 
-        if form.is_valid():
-            selected_student = form.cleaned_data["student"]
-            notes = form.cleaned_data.get("notes", "")
+    return _handle_student_pickup_get(request, student)
 
-            try:
-                with transaction.atomic():
-                    # Lock student record to prevent race conditions
-                    selected_student = Student.objects.select_for_update().get(
-                        id=selected_student.id
-                    )
 
-                    # Validate student status allows pickup
-                    if selected_student.current_status == "PICKED_UP":
-                        messages.error(
-                            request, f"{selected_student.name} has already been picked up."
-                        )
+def _handle_student_pickup_post(request, initial_student):
+    """Handle POST request for student pickup form submission."""
+    form = StudentPickupForm(request.POST, initial_student=initial_student)
 
-                    elif selected_student.current_status == "WAITING":
-                        messages.error(
-                            request,
-                            f"Parent has not arrived yet for {selected_student.name}. "
-                            f"Please log parent arrival first.",
-                        )
+    if not form.is_valid():
+        return _render_student_pickup_page(request, form, initial_student)
 
-                    elif selected_student.current_status == "PARENT_ARRIVED":
-                        # Create pickup completion event
-                        pickup_event = PickupEvent.objects.create(
-                            student=selected_student,
-                            staff_member=request.user,
-                            event_type="STUDENT_PICKED_UP",
-                            dismissal_code_used=selected_student.dismissal_code,
-                            notes=notes,
-                            ip_address=get_client_ip(request),
-                        )
+    selected_student = form.cleaned_data["student"]
+    notes = form.cleaned_data.get("notes", "")
 
-                        # Status is updated automatically in PickupEvent.save()
-                        selected_student.refresh_from_db()
+    try:
+        with transaction.atomic():
+            # Lock student record to prevent race conditions
+            selected_student = Student.objects.select_for_update().get(id=selected_student.id)
 
-                        # Clear dashboard cache
-                        clear_dashboard_cache()
+            if not _validate_student_status_for_pickup(selected_student, request):
+                return _render_student_pickup_page(request, form, initial_student)
 
-                        messages.success(
-                            request,
-                            f"Pickup completed for {selected_student.name}. "
-                            f"Student has been dismissed safely.",
-                        )
+            # Status is PARENT_ARRIVED - process the pickup
+            _process_student_pickup(selected_student, request, notes)
+            return redirect("dissmissal:dashboard")
 
-                        log_audit_event(
-                            user=request.user,
-                            action="STUDENT_PICKUP_COMPLETED",
-                            ip_address=get_client_ip(request),
-                            details={
-                                "student_id": selected_student.id,
-                                "student_name": selected_student.name,
-                                "pickup_event_id": pickup_event.id,
-                                "notes": notes,
-                            },
-                        )
+    except Exception as e:
+        _handle_pickup_processing_error(request, e, selected_student)
 
-                        return redirect("dissmissal:dashboard")
+    return _render_student_pickup_page(request, form, initial_student)
 
-            except Exception as e:
-                messages.error(
-                    request, "An error occurred while completing the pickup. Please try again."
-                )
-                audit_logger.error(
-                    f"Student pickup completion error: {str(e)}",
-                    extra={
-                        "user": request.user.username,
-                        "student_id": selected_student.id
-                        if "selected_student" in locals()
-                        else None,
-                        "ip_address": get_client_ip(request),
-                    },
-                )
 
-    else:
-        form = StudentPickupForm(initial_student=student)
+def _handle_student_pickup_get(request, student):
+    """Handle GET request for student pickup form display."""
+    form = StudentPickupForm(initial_student=student)
+    return _render_student_pickup_page(request, form, student)
 
+
+def _handle_pickup_processing_error(request, exception, student):
+    """Handle unexpected errors during student pickup processing."""
+    messages.error(request, "An error occurred while completing the pickup. Please try again.")
+    audit_logger.error(
+        f"Student pickup completion error: {str(exception)}",
+        extra={
+            "user": request.user.username,
+            "student_id": student.id if student else None,
+            "ip_address": get_client_ip(request),
+        },
+    )
+
+
+def _render_student_pickup_page(request, form, student):
+    """Render the student pickup page with context data."""
     # Get students ready for pickup (parent arrived status)
     ready_students = Student.objects.filter(
         is_active=True, current_status="PARENT_ARRIVED"
@@ -469,19 +547,19 @@ def student_details_view(request, student_id):
     Allows updating student information and viewing pickup history.
     """
     student = get_object_or_404(Student, id=student_id)
-    
+
     if request.method == "POST":
         form = EditStudentForm(request.POST, instance=student)
-        
+
         if form.is_valid():
             try:
                 # Track what fields changed
                 original_values = {}
                 for field in form.changed_data:
                     original_values[field] = getattr(student, field)
-                
+
                 updated_student = form.save()
-                
+
                 # Log the changes
                 log_audit_event(
                     user=request.user,
@@ -494,21 +572,20 @@ def student_details_view(request, student_id):
                         "original_values": original_values,
                     },
                 )
-                
+
                 messages.success(
                     request,
                     f"Successfully updated {updated_student.name}'s information",
                 )
-                
+
                 # Clear dashboard cache
                 clear_dashboard_cache()
-                
+
                 return redirect("dissmissal:student_details", student_id=student.id)
-                
+
             except Exception as e:
                 messages.error(
-                    request, 
-                    "An error occurred while updating the student. Please try again."
+                    request, "An error occurred while updating the student. Please try again."
                 )
                 audit_logger.error(
                     f"Student update error: {str(e)}",
@@ -520,21 +597,22 @@ def student_details_view(request, student_id):
                 )
     else:
         form = EditStudentForm(instance=student)
-    
+
     # Get student's pickup history
     pickup_events = student.pickup_events.select_related("staff_member").order_by("-timestamp")[:20]
-    
+
     context = {
         "form": form,
         "student": student,
         "pickup_events": pickup_events,
         "page_title": f"Student Details - {student.name}",
     }
-    
+
     return render(request, "dissmissal/student_details.html", context)
 
 
 # Mobile Interface Views
+
 
 @login_required
 def greeter_mobile_view(request):
@@ -549,15 +627,15 @@ def greeter_mobile_view(request):
         ip_address=get_client_ip(request),
         details={"timestamp": timezone.now().isoformat()},
     )
-    
+
     context = {
-        'page_title': 'Parent Check-in',
-        'user_name': request.user.get_full_name() or request.user.username,
+        "page_title": "Parent Check-in",
+        "user_name": request.user.get_full_name() or request.user.username,
     }
-    return render(request, 'dissmissal/greeter.html', context)
+    return render(request, "dissmissal/greeter.html", context)
 
 
-@login_required  
+@login_required
 def releaser_mobile_view(request):
     """
     Ultra-simple mobile releaser interface for student pickup completion.
@@ -570,9 +648,9 @@ def releaser_mobile_view(request):
         ip_address=get_client_ip(request),
         details={"timestamp": timezone.now().isoformat()},
     )
-    
+
     context = {
-        'page_title': 'Student Release',
-        'user_name': request.user.get_full_name() or request.user.username,
+        "page_title": "Student Release",
+        "user_name": request.user.get_full_name() or request.user.username,
     }
-    return render(request, 'dissmissal/releaser.html', context)
+    return render(request, "dissmissal/releaser.html", context)

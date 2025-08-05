@@ -93,6 +93,9 @@ class UtilityFunctionTests(TestCase):
             "123ABC",
             "AB123C",
             "A12B34",
+            "ABC",  # Now valid (1-8 characters)
+            "AB",   # Now valid (1-8 characters)
+            "A",    # Now valid (1-8 characters)
         ]
         
         for code in valid_codes:
@@ -104,8 +107,7 @@ class UtilityFunctionTests(TestCase):
         """Test validation of invalid dismissal code formats"""
         invalid_codes = [
             ("", "Dismissal code is required"),
-            ("ABC", "Dismissal code must be 6-8 characters long"),
-            ("ABCDEFGHI", "Dismissal code must be 6-8 characters long"),
+            ("ABCDEFGHI", "Dismissal code must be 1-8 characters long"),
             ("ABC@123", "Dismissal code can only contain letters and numbers"),
             ("ABC 123", "Dismissal code can only contain letters and numbers"),
             ("ABC-123", "Dismissal code can only contain letters and numbers"),

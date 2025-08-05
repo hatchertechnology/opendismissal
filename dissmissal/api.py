@@ -22,6 +22,85 @@ import json
 # Set up audit logging
 audit_logger = logging.getLogger("dissmissal.audit")
 
+# Constants for repeated strings
+CACHE_CONTROL_NO_CACHE = "no-cache, no-store, must-revalidate"
+ERROR_INVALID_REQUEST_FORMAT = "Invalid request format"
+ERROR_INVALID_REQUEST_DATA = "Invalid request data. Please try again."
+
+
+def _get_latest_event_data(latest_event):
+    """Helper function to extract latest event data for student."""
+    if not latest_event:
+        return None
+
+    event_type = latest_event.event_type
+    timestamp = latest_event.timestamp.isoformat()
+    staff_name = latest_event.staff_member.get_full_name()
+
+    return {
+        "type": event_type,
+        "timestamp": timestamp,
+        "staff": staff_name,
+    }
+
+
+def _build_student_data_item(student):
+    """Helper function to build student data dictionary."""
+    latest_event = student.get_latest_event()
+    latest_event_data = _get_latest_event_data(latest_event)
+
+    return {
+        "id": student.id,
+        "name": student.name,
+        "dismissal_code": student.dismissal_code,
+        "grade": student.grade,
+        "teacher": student.teacher,
+        "current_status": student.current_status,
+        "status_display": student.get_current_status_display(),
+        "status_updated_at": student.status_updated_at.isoformat(),
+        "latest_event": latest_event_data,
+    }
+
+
+def _set_no_cache_headers(response):
+    """Helper function to set no-cache headers on response."""
+    response["Cache-Control"] = CACHE_CONTROL_NO_CACHE
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    return response
+
+
+def _build_refresh_student_data_item(student):
+    """Helper function to build student data dictionary for refresh API."""
+    latest_event = student.pickup_events.order_by("-timestamp").first()
+    latest_event_data = _get_latest_event_data(latest_event)
+
+    return {
+        "id": student.id,
+        "name": student.name,
+        "dismissal_code": student.dismissal_code,
+        "grade": student.grade,
+        "teacher": student.teacher,
+        "current_status": student.current_status,
+        "status_display": student.get_current_status_display(),
+        "last_updated": student.status_updated_at.isoformat(),
+        "latest_event": latest_event_data,
+    }
+
+
+def _check_for_recent_updates(last_update):
+    """Helper function to check if there are recent updates since last_update."""
+    if not last_update:
+        return True, None
+
+    try:
+        last_update_time = timezone.datetime.fromisoformat(last_update.replace("Z", "+00:00"))
+        # Check if any pickup events occurred since last update
+        recent_events = PickupEvent.objects.filter(timestamp__gt=last_update_time).count()
+        return recent_events > 0, last_update_time
+    except (ValueError, TypeError):
+        return True, None  # Invalid timestamp, return full data
+
 
 @login_required
 @require_http_methods(["GET"])
@@ -35,60 +114,37 @@ def dashboard_status_api(request):
         data = cache.get(cache_key)
 
         if not data:
-            # Optimized query with select_related to prevent N+1
-            students = Student.objects.select_related().filter(is_active=True)
-
-            student_data = []
-            for student in students:
-                latest_event = student.get_latest_event()
-                student_data.append(
-                    {
-                        "id": student.id,
-                        "name": student.name,
-                        "dismissal_code": student.dismissal_code,
-                        "grade": student.grade,
-                        "teacher": student.teacher,
-                        "current_status": student.current_status,
-                        "status_display": student.get_current_status_display(),
-                        "status_updated_at": student.status_updated_at.isoformat(),
-                        "latest_event": {
-                            "type": latest_event.event_type if latest_event else None,
-                            "timestamp": latest_event.timestamp.isoformat() if latest_event else None,
-                            "staff": latest_event.staff_member.get_full_name()
-                            if latest_event
-                            else None,
-                        }
-                        if latest_event
-                        else None,
-                    }
-                )
-
-            # Get current statistics
-            stats = get_dashboard_stats()
-
-            data = {
-                "success": True,
-                "students": student_data,
-                "stats": stats,
-                "timestamp": timezone.now().isoformat(),
-            }
-
+            data = _build_dashboard_data()
             # Cache for 5 seconds to match dashboard refresh rate
             cache.set(cache_key, data, timeout=5)
 
         response = JsonResponse(data)
-        # Prevent caching of real-time data
-        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response['Pragma'] = 'no-cache'
-        response['Expires'] = '0'
-        return response
+        return _set_no_cache_headers(response)
 
     except Exception:
         response = JsonResponse(
             {"success": False, "error": "Failed to retrieve dashboard status"}, status=500
         )
-        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response["Cache-Control"] = CACHE_CONTROL_NO_CACHE
         return response
+
+
+def _build_dashboard_data():
+    """Helper function to build dashboard data."""
+    # Optimized query with select_related to prevent N+1
+    students = Student.objects.select_related().filter(is_active=True)
+
+    student_data = [_build_student_data_item(student) for student in students]
+
+    # Get current statistics
+    stats = get_dashboard_stats()
+
+    return {
+        "success": True,
+        "students": student_data,
+        "stats": stats,
+        "timestamp": timezone.now().isoformat(),
+    }
 
 
 @login_required
@@ -141,7 +197,7 @@ def validate_dismissal_code_api(request):
             return JsonResponse({"valid": False, "error": "Invalid dismissal code"})
 
     except json.JSONDecodeError:
-        return JsonResponse({"valid": False, "error": "Invalid request format"})
+        return JsonResponse({"valid": False, "error": ERROR_INVALID_REQUEST_FORMAT})
     except Exception:
         return JsonResponse({"valid": False, "error": "Validation error occurred"})
 
@@ -220,12 +276,12 @@ def quick_pickup_api(request):
                 }
             )
             # Prevent caching of pickup responses
-            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            response['Pragma'] = 'no-cache'
+            response["Cache-Control"] = CACHE_CONTROL_NO_CACHE
+            response["Pragma"] = "no-cache"
             return response
 
     except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid request format"})
+        return JsonResponse({"success": False, "error": ERROR_INVALID_REQUEST_FORMAT})
     except Exception:
         return JsonResponse(
             {"success": False, "error": "An error occurred while processing pickup"}
@@ -245,48 +301,15 @@ def dashboard_refresh_api(request):
         # Get current stats
         stats = get_dashboard_stats()
 
-        # If last_update provided, only return data if there are changes
-        if last_update:
-            try:
-                last_update_time = timezone.datetime.fromisoformat(
-                    last_update.replace("Z", "+00:00")
-                )
+        # Check if there are recent updates
+        has_updates, last_update_time = _check_for_recent_updates(last_update)
 
-                # Check if any pickup events occurred since last update
-                recent_events = PickupEvent.objects.filter(timestamp__gt=last_update_time).count()
-
-                if recent_events == 0:
-                    return JsonResponse({"updated": False, "stats": stats})
-            except (ValueError, TypeError):
-                pass  # Invalid timestamp, return full data
+        if not has_updates:
+            return JsonResponse({"updated": False, "stats": stats})
 
         # Get updated student data
         students = Student.objects.filter(is_active=True).select_related()
-
-        student_data = []
-        for student in students:
-            latest_event = student.pickup_events.order_by("-timestamp").first()
-            student_data.append(
-                {
-                    "id": student.id,
-                    "name": student.name,
-                    "dismissal_code": student.dismissal_code,
-                    "grade": student.grade,
-                    "teacher": student.teacher,
-                    "current_status": student.current_status,
-                    "status_display": student.get_current_status_display(),
-                    "last_updated": student.status_updated_at.isoformat(),
-                    "latest_event": {
-                        "type": latest_event.event_type if latest_event else None,
-                        "timestamp": latest_event.timestamp.isoformat() if latest_event else None,
-                        "staff": latest_event.staff_member.get_full_name()
-                        if latest_event
-                        else None,
-                    }
-                    if latest_event
-                    else None,
-                }
-            )
+        student_data = [_build_refresh_student_data_item(student) for student in students]
 
         return JsonResponse(
             {
@@ -413,7 +436,7 @@ def bulk_action_api(request):
         )
 
     except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid request format"})
+        return JsonResponse({"success": False, "error": ERROR_INVALID_REQUEST_FORMAT})
     except Exception:
         return JsonResponse({"success": False, "error": "Bulk action failed"})
 
@@ -437,7 +460,7 @@ def reset_all_api(request):
         with transaction.atomic():
             # Get all active students
             students = Student.objects.filter(is_active=True)
-            
+
             if not students.exists():
                 return JsonResponse({"success": False, "error": "No active students found"})
 
@@ -463,6 +486,7 @@ def reset_all_api(request):
 
             # Clear cache to refresh dashboard
             from .utils import clear_dashboard_cache
+
             clear_dashboard_cache()
 
             response = JsonResponse(
@@ -474,19 +498,20 @@ def reset_all_api(request):
                 }
             )
             # Prevent caching of reset responses
-            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            response['Pragma'] = 'no-cache'
+            response["Cache-Control"] = CACHE_CONTROL_NO_CACHE
+            response["Pragma"] = "no-cache"
             return response
 
     except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid request format"})
-    except Exception as e:
+        return JsonResponse({"success": False, "error": ERROR_INVALID_REQUEST_FORMAT})
+    except Exception:
         return JsonResponse(
             {"success": False, "error": "An error occurred while resetting students"}
         )
 
 
 # Mobile Interface API Endpoints
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -498,49 +523,43 @@ def greeter_submit_api(request):
     Designed for rapid mobile use with clear, immediate feedback.
     """
     try:
-        code = request.POST.get('code', '').upper().strip()
-        
+        code = request.POST.get("code", "").upper().strip()
+
         if not code:
-            return JsonResponse({
-                'success': False, 
-                'message': 'Please enter a student code'
-            })
-        
+            return JsonResponse({"success": False, "message": "Please enter a student code"})
+
         # Validate code format
         if len(code) < 3 or len(code) > 8 or not code.isalnum():
-            return JsonResponse({
-                'success': False,
-                'message': 'Invalid code format'
-            })
-        
+            return JsonResponse({"success": False, "message": "Invalid code format"})
+
         with transaction.atomic():
             try:
                 student = Student.objects.select_for_update().get(
-                    dismissal_code=code, 
-                    is_active=True
+                    dismissal_code=code, is_active=True
                 )
-                
-                if student.current_status == 'PICKED_UP':
-                    return JsonResponse({
-                        'success': False, 
-                        'message': f'{student.name} already picked up'
-                    })
-                elif student.current_status == 'PARENT_ARRIVED':
-                    return JsonResponse({
-                        'success': True, 
-                        'message': f'{student.name} parent already here',
-                        'duplicate': True
-                    })
+
+                if student.current_status == "PICKED_UP":
+                    return JsonResponse(
+                        {"success": False, "message": f"{student.name} already picked up"}
+                    )
+                elif student.current_status == "PARENT_ARRIVED":
+                    return JsonResponse(
+                        {
+                            "success": True,
+                            "message": f"{student.name} parent already here",
+                            "duplicate": True,
+                        }
+                    )
                 else:
                     # Create arrival event
                     PickupEvent.objects.create(
                         student=student,
                         staff_member=request.user,
-                        event_type='PARENT_ARRIVED',
+                        event_type="PARENT_ARRIVED",
                         dismissal_code_used=code,
-                        ip_address=get_client_ip(request)
+                        ip_address=get_client_ip(request),
                     )
-                    
+
                     # Log successful check-in
                     log_audit_event(
                         user=request.user,
@@ -552,15 +571,17 @@ def greeter_submit_api(request):
                             "dismissal_code": code,
                         },
                     )
-                    
+
                     # Clear cache to update other interfaces
                     clear_dashboard_cache()
-                    
-                    return JsonResponse({
-                        'success': True,
-                        'message': f'{student.name} - Grade {student.grade} - {student.teacher}'
-                    })
-                    
+
+                    return JsonResponse(
+                        {
+                            "success": True,
+                            "message": f"{student.name} - Grade {student.grade} - {student.teacher}",
+                        }
+                    )
+
             except Student.DoesNotExist:
                 # Log invalid attempt for security
                 log_audit_event(
@@ -569,12 +590,9 @@ def greeter_submit_api(request):
                     ip_address=get_client_ip(request),
                     details={"attempted_code": code},
                 )
-                
-                return JsonResponse({
-                    'success': False, 
-                    'message': 'Invalid student code'
-                })
-                
+
+                return JsonResponse({"success": False, "message": "Invalid student code"})
+
     except (ValueError, TypeError) as e:
         # Handle data validation errors specifically
         audit_logger.warning(
@@ -582,26 +600,22 @@ def greeter_submit_api(request):
             extra={
                 "user": request.user.username,
                 "ip_address": get_client_ip(request),
-                "code": code if 'code' in locals() else 'unknown',
+                "code": code if "code" in locals() else "unknown",
             },
         )
-        return JsonResponse({
-            'success': False, 
-            'message': 'Invalid request data. Please try again.'
-        })
+        return JsonResponse(
+            {"success": False, "message": ERROR_INVALID_REQUEST_DATA}
+        )
     except Exception as e:
         audit_logger.error(
             f"Mobile greeter API error: {str(e)}",
             extra={
                 "user": request.user.username,
                 "ip_address": get_client_ip(request),
-                "code": code if 'code' in locals() else 'unknown',
+                "code": code if "code" in locals() else "unknown",
             },
         )
-        return JsonResponse({
-            'success': False, 
-            'message': 'System error. Please try again.'
-        })
+        return JsonResponse({"success": False, "message": "System error. Please try again."})
 
 
 @login_required
@@ -612,24 +626,27 @@ def releaser_data_api(request):
     Returns simple list ordered by arrival time.
     """
     try:
-        students = Student.objects.filter(
-            is_active=True, 
-            current_status='PARENT_ARRIVED'
-        ).select_related().order_by('status_updated_at')  # First arrived = first in queue
-        
+        students = (
+            Student.objects.filter(is_active=True, current_status="PARENT_ARRIVED")
+            .select_related()
+            .order_by("status_updated_at")
+        )  # First arrived = first in queue
+
         data = []
         for student in students:
-            data.append({
-                'id': student.id,
-                'name': student.name,
-                'code': student.dismissal_code,
-                'grade': student.grade,
-                'teacher': student.teacher,
-                'arrived_at': student.status_updated_at.strftime('%I:%M %p')
-            })
-        
-        return JsonResponse({'students': data})
-        
+            data.append(
+                {
+                    "id": student.id,
+                    "name": student.name,
+                    "code": student.dismissal_code,
+                    "grade": student.grade,
+                    "teacher": student.teacher,
+                    "arrived_at": student.status_updated_at.strftime("%I:%M %p"),
+                }
+            )
+
+        return JsonResponse({"students": data})
+
     except Exception as e:
         audit_logger.error(
             f"Mobile releaser data API error: {str(e)}",
@@ -638,54 +655,43 @@ def releaser_data_api(request):
                 "ip_address": get_client_ip(request),
             },
         )
-        return JsonResponse({
-            'students': [],
-            'error': 'Failed to load student data'
-        })
+        return JsonResponse({"students": [], "error": "Failed to load student data"})
 
 
 @login_required
 @require_http_methods(["POST"])
-@csrf_protect  
+@csrf_protect
 def complete_pickup_api(request):
     """
     Complete student pickup via mobile interface.
     Simple tap-to-complete with immediate feedback.
     """
     try:
-        student_id = request.POST.get('student_id')
-        
+        student_id = request.POST.get("student_id")
+
         if not student_id:
-            return JsonResponse({
-                'success': False, 
-                'message': 'Student ID required'
-            })
-        
+            return JsonResponse({"success": False, "message": "Student ID required"})
+
         try:
             student_id = int(student_id)
         except (ValueError, TypeError):
-            return JsonResponse({
-                'success': False, 
-                'message': 'Invalid student ID'
-            })
-        
+            return JsonResponse({"success": False, "message": "Invalid student ID"})
+
         with transaction.atomic():
             try:
                 student = Student.objects.select_for_update().get(
-                    id=student_id, 
-                    current_status='PARENT_ARRIVED',
-                    is_active=True
+                    id=student_id, current_status="PARENT_ARRIVED", is_active=True
                 )
-                
+
                 # Create pickup completion event
                 pickup_event = PickupEvent.objects.create(
                     student=student,
                     staff_member=request.user,
-                    event_type='STUDENT_PICKED_UP',
+                    event_type="STUDENT_PICKED_UP",
                     dismissal_code_used=student.dismissal_code,
-                    ip_address=get_client_ip(request)
+                    ip_address=get_client_ip(request),
                 )
-                
+
                 # Log successful pickup
                 log_audit_event(
                     user=request.user,
@@ -697,21 +703,17 @@ def complete_pickup_api(request):
                         "pickup_event_id": pickup_event.id,
                     },
                 )
-                
+
                 # Clear cache to update other interfaces
                 clear_dashboard_cache()
-                
-                return JsonResponse({
-                    'success': True,
-                    'message': f'{student.name} pickup complete'
-                })
-                
+
+                return JsonResponse({"success": True, "message": f"{student.name} pickup complete"})
+
             except Student.DoesNotExist:
-                return JsonResponse({
-                    'success': False, 
-                    'message': 'Student not found or not ready for pickup'
-                })
-                
+                return JsonResponse(
+                    {"success": False, "message": "Student not found or not ready for pickup"}
+                )
+
     except (ValueError, TypeError) as e:
         # Handle data validation errors specifically
         audit_logger.warning(
@@ -719,23 +721,19 @@ def complete_pickup_api(request):
             extra={
                 "user": request.user.username,
                 "ip_address": get_client_ip(request),
-                "student_id": student_id if 'student_id' in locals() else 'unknown',
+                "student_id": student_id if "student_id" in locals() else "unknown",
             },
         )
-        return JsonResponse({
-            'success': False, 
-            'message': 'Invalid request data. Please try again.'
-        })
+        return JsonResponse(
+            {"success": False, "message": ERROR_INVALID_REQUEST_DATA}
+        )
     except Exception as e:
         audit_logger.error(
             f"Mobile pickup completion API error: {str(e)}",
             extra={
                 "user": request.user.username,
                 "ip_address": get_client_ip(request),
-                "student_id": student_id if 'student_id' in locals() else 'unknown',
+                "student_id": student_id if "student_id" in locals() else "unknown",
             },
         )
-        return JsonResponse({
-            'success': False, 
-            'message': 'System error. Please try again.'
-        })
+        return JsonResponse({"success": False, "message": "System error. Please try again."})

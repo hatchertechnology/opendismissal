@@ -1,0 +1,62 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Bulk Import Dismissal Codes{% endblock %}
+
+{% block content %}
+<div class="module aligned">
+    <h2>Bulk Import Dismissal Codes</h2>
+    
+    <div class="results">
+        <div class="row1">
+            <p>Upload a CSV file to bulk update dismissal codes for students. The CSV file must contain the following columns:</p>
+            <ul>
+                <li><strong>student_name</strong> - Exact student name (case-insensitive)</li>
+                <li><strong>dismissal_code</strong> - New dismissal code (1-8 characters, letters and numbers only). Leave blank to auto-generate.</li>
+            </ul>
+            
+            <h3>CSV Format Example:</h3>
+            <pre style="background: #f8f8f8; padding: 10px; border: 1px solid #ddd;">
+student_name,dismissal_code
+John Smith,ABC123
+Jane Doe,XYZ789
+Bob Johnson,
+            </pre>
+            
+            <div class="form-row">
+                <p><strong>Important Notes:</strong></p>
+                <ul>
+                    <li>Student names must match exactly (case-insensitive)</li>
+                    <li>Dismissal codes must be 1-8 characters long</li>
+                    <li>Only letters and numbers are allowed in codes</li>
+                    <li>Codes must be unique across all students</li>
+                    <li>Leave dismissal_code blank to auto-generate a 6-character code</li>
+                    <li>All changes will be logged for audit purposes</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <fieldset class="module aligned">
+            <div class="form-row">
+                <div>
+                    <label for="csv_file">CSV File:</label>
+                    <input type="file" name="csv_file" id="csv_file" accept=".csv" required>
+                </div>
+            </div>
+        </fieldset>
+        
+        <div class="submit-row">
+            <input type="submit" value="Upload and Import" class="default">
+            <a href="{% url 'admin:dissmissal_student_changelist' %}" class="button cancel-link">Cancel</a>
+        </div>
+    </form>
+    
+    <div class="module">
+        <h3>Quick Actions</h3>
+        <p>
+            <a href="{% url 'admin:export_dismissal_codes' %}" class="button">Export Current Codes as CSV</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
