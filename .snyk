@@ -1,0 +1,9 @@
+# Snyk (https://snyk.io) policy file
+version: v1.0.0
+exclude:
+  global:
+    # Exclude test files from hardcoded credential scanning
+    - "dissmissal/tests.py"
+    - "dissmissal/tests/test_*.py"
+    - "**/test_*.py"
+    - "dissmissal/management/commands/generate_demo_data.py"

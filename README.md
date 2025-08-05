@@ -1,6 +1,8 @@
 # opendismissal
 An application to help streamline and secure school dismissals.
 
+[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-highlight.svg)](https://sonarcloud.io/summary/new_code?id=hatchertechnology_opendismissal)
+
 
 ## Problem statement
 School dismissals can be chaotic and stressful. Parents often have to wait in long lines to pick up their children, and schools struggle to ensure that only authorized individuals are allowed to take students home. This can lead to safety concerns and delays in the dismissal process.
@@ -78,4 +80,6 @@ Though out of scope for the MVP, don't make any design decisions that would make
 ## Code Safety
 
 [SonarQube](https://sonarcloud.io/project/overview?id=hatchertechnology_opendismissal) is used to monitor code quality and security. All new code must maintain or improve the current SonarQube rating.
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=hatchertechnology_opendismissal&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=hatchertechnology_opendismissal)
 

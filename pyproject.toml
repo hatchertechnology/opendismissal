@@ -39,6 +39,6 @@ docstring-code-format = true
 
 
 [tool.sonar]
-projectKey=hatchertechnology_opendismissal
-projectName=OpenDismissal
-sonar.exclusions=**/tests/*test*.py,**/**/commands/generate_demo_data.py
+projectKey="hatchertechnology_opendismissal"
+projectName="OpenDismissal"
+exclusions='**/tests/*test*.py,**/**/commands/generate_demo_data.py'
