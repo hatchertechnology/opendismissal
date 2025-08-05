@@ -11,6 +11,27 @@
             <p class="text-muted mb-0">Real-time view of student dismissal status</p>
         </div>
         <div class="col-auto">
+            <div class="btn-group-vertical btn-group-sm d-none d-md-block me-2" role="group">
+                <div class="small text-muted mb-1 text-center">📱 Mobile Interfaces</div>
+                <div class="btn-group" role="group">
+                    <a href="{% url 'dissmissal:greeter_mobile' %}"
+                       class="btn btn-outline-info btn-sm"
+                       data-bs-toggle="tooltip"
+                       data-bs-placement="bottom"
+                       title="Outdoor parent check-in interface">
+                        <i class="bi bi-person-check me-1"></i>
+                        Greeter
+                    </a>
+                    <a href="{% url 'dissmissal:releaser_mobile' %}"
+                       class="btn btn-outline-success btn-sm"
+                       data-bs-toggle="tooltip"
+                       data-bs-placement="bottom"
+                       title="Indoor student release interface">
+                        <i class="bi bi-check2-circle me-1"></i>
+                        Releaser
+                    </a>
+                </div>
+            </div>
             <div class="btn-group" role="group">
                 <a href="{% url 'dissmissal:parent_arrival' %}"
                    class="btn btn-primary btn-mobile">

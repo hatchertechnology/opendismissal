@@ -122,6 +122,40 @@
                             </a>
                         </li>
                         <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name in 'greeter_mobile,releaser_mobile' %}active{% endif %}" 
+                               href="#" 
+                               id="mobileDropdown" 
+                               role="button" 
+                               data-bs-toggle="dropdown" 
+                               aria-expanded="false">
+                                <i class="bi bi-phone me-1"></i>
+                                Mobile
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="mobileDropdown">
+                                <li>
+                                    <a class="dropdown-item {% if request.resolver_match.url_name == 'greeter_mobile' %}active{% endif %}" 
+                                       href="{% url 'dissmissal:greeter_mobile' %}">
+                                        <i class="bi bi-person-check me-2"></i>
+                                        Greeter (Parent Check-in)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {% if request.resolver_match.url_name == 'releaser_mobile' %}active{% endif %}" 
+                                       href="{% url 'dissmissal:releaser_mobile' %}">
+                                        <i class="bi bi-check2-circle me-2"></i>
+                                        Releaser (Student Release)
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <small class="dropdown-item-text text-muted">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        Optimized for smartphones
+                                    </small>
+                                </li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name in 'add_student,student_details' %}active{% endif %}" 
                                href="#" 
                                id="studentsDropdown" 
