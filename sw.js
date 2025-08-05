@@ -4,7 +4,7 @@
  * Author: Kerry Hatcher
  */
 
-const CACHE_VERSION = 'v1.2';
+const CACHE_VERSION = 'v1.3';
 const CACHE_NAME = 'opendismissal-' + CACHE_VERSION;
 const urlsToCache = [
     // Core application assets
@@ -17,7 +17,7 @@ const urlsToCache = [
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css',
     
     // Core application pages (but not API endpoints)
-    '/dissmissal/',
+    // Note: /dissmissal/ (dashboard) excluded to prevent caching issues with real-time statistics
     '/dissmissal/arrival/',
 ];
 
@@ -71,11 +71,13 @@ self.addEventListener('fetch', function(event) {
         return;
     }
     
-    // Never cache API endpoints that need real-time data
+    // Never cache API endpoints or dashboard page that need real-time data
     const isApiRequest = event.request.url.includes('/dissmissal/api/');
+    const isDashboardRequest = event.request.url.endsWith('/dissmissal/') || 
+                              event.request.url.endsWith('/dissmissal');
     
-    if (isApiRequest) {
-        // For API requests, always go to network for fresh data
+    if (isApiRequest || isDashboardRequest) {
+        // For API requests and dashboard, always go to network for fresh data
         event.respondWith(
             fetch(event.request).catch(function() {
                 // If network fails, return a basic error response
@@ -117,13 +119,16 @@ self.addEventListener('fetch', function(event) {
                     // Clone response for caching
                     const responseToCache = response.clone();
                     
-                    // Cache new responses for future use (but not API endpoints)
+                    // Cache new responses for future use (but not API endpoints or dashboard)
                     caches.open(CACHE_NAME)
                         .then(function(cache) {
-                            // Only cache static resources and pages, not API endpoints
+                            // Only cache static resources and non-dashboard pages, not API endpoints or dashboard
+                            const isDashboard = event.request.url.endsWith('/dissmissal/') || 
+                                              event.request.url.endsWith('/dissmissal');
                             if ((event.request.url.includes('/dissmissal/') || 
                                 event.request.url.includes('/static/')) &&
-                                !event.request.url.includes('/api/')) {
+                                !event.request.url.includes('/api/') &&
+                                !isDashboard) {
                                 cache.put(event.request, responseToCache);
                             }
                         });
