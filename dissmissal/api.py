@@ -14,9 +14,13 @@ from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 from django.db import transaction, models
 
+import logging
 from .models import Student, PickupEvent
-from .utils import get_client_ip, log_audit_event, get_dashboard_stats
+from .utils import get_client_ip, log_audit_event, get_dashboard_stats, clear_dashboard_cache
 import json
+
+# Set up audit logging
+audit_logger = logging.getLogger("dissmissal.audit")
 
 
 @login_required
@@ -480,3 +484,230 @@ def reset_all_api(request):
         return JsonResponse(
             {"success": False, "error": "An error occurred while resetting students"}
         )
+
+
+# Mobile Interface API Endpoints
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="120/m")  # High rate for rapid greeter use
+@csrf_protect
+def greeter_submit_api(request):
+    """
+    Ultra-simple greeter endpoint for parent arrival check-in.
+    Designed for rapid mobile use with clear, immediate feedback.
+    """
+    try:
+        code = request.POST.get('code', '').upper().strip()
+        
+        if not code:
+            return JsonResponse({
+                'success': False, 
+                'message': 'Please enter a student code'
+            })
+        
+        # Validate code format
+        if len(code) < 3 or len(code) > 8 or not code.isalnum():
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid code format'
+            })
+        
+        with transaction.atomic():
+            try:
+                student = Student.objects.select_for_update().get(
+                    dismissal_code=code, 
+                    is_active=True
+                )
+                
+                if student.current_status == 'PICKED_UP':
+                    return JsonResponse({
+                        'success': False, 
+                        'message': f'{student.name} already picked up'
+                    })
+                elif student.current_status == 'PARENT_ARRIVED':
+                    return JsonResponse({
+                        'success': True, 
+                        'message': f'{student.name} parent already here',
+                        'duplicate': True
+                    })
+                else:
+                    # Create arrival event
+                    PickupEvent.objects.create(
+                        student=student,
+                        staff_member=request.user,
+                        event_type='PARENT_ARRIVED',
+                        dismissal_code_used=code,
+                        ip_address=get_client_ip(request)
+                    )
+                    
+                    # Log successful check-in
+                    log_audit_event(
+                        user=request.user,
+                        action="MOBILE_PARENT_ARRIVAL",
+                        ip_address=get_client_ip(request),
+                        details={
+                            "student_id": student.id,
+                            "student_name": student.name,
+                            "dismissal_code": code,
+                        },
+                    )
+                    
+                    # Clear cache to update other interfaces
+                    clear_dashboard_cache()
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'{student.name} - Grade {student.grade} - {student.teacher}'
+                    })
+                    
+            except Student.DoesNotExist:
+                # Log invalid attempt for security
+                log_audit_event(
+                    user=request.user,
+                    action="MOBILE_INVALID_CODE",
+                    ip_address=get_client_ip(request),
+                    details={"attempted_code": code},
+                )
+                
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Invalid student code'
+                })
+                
+    except Exception as e:
+        audit_logger.error(
+            f"Mobile greeter API error: {str(e)}",
+            extra={
+                "user": request.user.username,
+                "ip_address": get_client_ip(request),
+                "code": code if 'code' in locals() else 'unknown',
+            },
+        )
+        return JsonResponse({
+            'success': False, 
+            'message': 'System error. Please try again.'
+        })
+
+
+@login_required
+@require_http_methods(["GET"])
+def releaser_data_api(request):
+    """
+    Get pending students for mobile releaser interface.
+    Returns simple list ordered by arrival time.
+    """
+    try:
+        students = Student.objects.filter(
+            is_active=True, 
+            current_status='PARENT_ARRIVED'
+        ).select_related().order_by('status_updated_at')  # First arrived = first in queue
+        
+        data = []
+        for student in students:
+            data.append({
+                'id': student.id,
+                'name': student.name,
+                'code': student.dismissal_code,
+                'grade': student.grade,
+                'teacher': student.teacher,
+                'arrived_at': student.status_updated_at.strftime('%I:%M %p')
+            })
+        
+        return JsonResponse({'students': data})
+        
+    except Exception as e:
+        audit_logger.error(
+            f"Mobile releaser data API error: {str(e)}",
+            extra={
+                "user": request.user.username,
+                "ip_address": get_client_ip(request),
+            },
+        )
+        return JsonResponse({
+            'students': [],
+            'error': 'Failed to load student data'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_protect  
+def complete_pickup_api(request):
+    """
+    Complete student pickup via mobile interface.
+    Simple tap-to-complete with immediate feedback.
+    """
+    try:
+        student_id = request.POST.get('student_id')
+        
+        if not student_id:
+            return JsonResponse({
+                'success': False, 
+                'message': 'Student ID required'
+            })
+        
+        try:
+            student_id = int(student_id)
+        except (ValueError, TypeError):
+            return JsonResponse({
+                'success': False, 
+                'message': 'Invalid student ID'
+            })
+        
+        with transaction.atomic():
+            try:
+                student = Student.objects.select_for_update().get(
+                    id=student_id, 
+                    current_status='PARENT_ARRIVED',
+                    is_active=True
+                )
+                
+                # Create pickup completion event
+                pickup_event = PickupEvent.objects.create(
+                    student=student,
+                    staff_member=request.user,
+                    event_type='STUDENT_PICKED_UP',
+                    dismissal_code_used=student.dismissal_code,
+                    ip_address=get_client_ip(request)
+                )
+                
+                # Log successful pickup
+                log_audit_event(
+                    user=request.user,
+                    action="MOBILE_PICKUP_COMPLETED",
+                    ip_address=get_client_ip(request),
+                    details={
+                        "student_id": student.id,
+                        "student_name": student.name,
+                        "pickup_event_id": pickup_event.id,
+                    },
+                )
+                
+                # Clear cache to update other interfaces
+                clear_dashboard_cache()
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'{student.name} pickup complete'
+                })
+                
+            except Student.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Student not found or not ready for pickup'
+                })
+                
+    except Exception as e:
+        audit_logger.error(
+            f"Mobile pickup completion API error: {str(e)}",
+            extra={
+                "user": request.user.username,
+                "ip_address": get_client_ip(request),
+                "student_id": student_id if 'student_id' in locals() else 'unknown',
+            },
+        )
+        return JsonResponse({
+            'success': False, 
+            'message': 'System error. Please try again.'
+        })
