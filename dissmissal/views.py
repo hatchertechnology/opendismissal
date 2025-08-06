@@ -19,6 +19,13 @@ from django.db import models
 
 import logging
 from .models import Student, PickupEvent
+from .constants import (
+    DASHBOARD_STUDENTS_PER_PAGE,
+    RECENT_EVENTS_LIMIT,
+    STUDENT_PICKUP_EVENTS_LIMIT,
+    DASHBOARD_CACHE_TIMEOUT,
+    PARENT_ARRIVAL_RATE_LIMIT,
+)
 from .forms import (
     ParentArrivalForm,
     StudentPickupForm,
@@ -266,11 +273,11 @@ def dashboard_view(request):
             "last_updated": timezone.now(),
         }
 
-        # Cache for 60 seconds to balance performance and freshness
-        cache.set(cache_key, dashboard_data, timeout=60)
+        # Cache for configured timeout to balance performance and freshness
+        cache.set(cache_key, dashboard_data, timeout=DASHBOARD_CACHE_TIMEOUT)
 
     # Pagination for large student lists
-    paginator = Paginator(dashboard_data["students"], 25)  # 25 students per page
+    paginator = Paginator(dashboard_data["students"], DASHBOARD_STUDENTS_PER_PAGE)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
@@ -296,7 +303,7 @@ def dashboard_view(request):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-@ratelimit(key="user", rate="20/m", method=["POST"])  # Prevent brute force attempts
+@ratelimit(key="user", rate=PARENT_ARRIVAL_RATE_LIMIT, method=["POST"])  # Prevent brute force attempts
 @csrf_protect
 def parent_arrival_view(request, code=None):
     """
@@ -382,7 +389,7 @@ def _render_parent_arrival_page(request, form):
             event_type="PARENT_ARRIVED", timestamp__date=timezone.now().date()
         )
         .select_related("student", "staff_member")
-        .order_by("-timestamp")[:10]
+        .order_by("-timestamp")[:RECENT_EVENTS_LIMIT]
     )
 
     context = {"form": form, "recent_arrivals": recent_arrivals, "page_title": "Log Parent Arrival"}
@@ -468,7 +475,7 @@ def _render_student_pickup_page(request, form, student):
             event_type="STUDENT_PICKED_UP", timestamp__date=timezone.now().date()
         )
         .select_related("student", "staff_member")
-        .order_by("-timestamp")[:10]
+        .order_by("-timestamp")[:RECENT_EVENTS_LIMIT]
     )
 
     context = {
@@ -599,7 +606,7 @@ def student_details_view(request, student_id):
         form = EditStudentForm(instance=student)
 
     # Get student's pickup history
-    pickup_events = student.pickup_events.select_related("staff_member").order_by("-timestamp")[:20]
+    pickup_events = student.pickup_events.select_related("staff_member").order_by("-timestamp")[:STUDENT_PICKUP_EVENTS_LIMIT]
 
     context = {
         "form": form,
