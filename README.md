@@ -83,3 +83,55 @@ Though out of scope for the MVP, don't make any design decisions that would make
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=hatchertechnology_opendismissal&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=hatchertechnology_opendismissal)
 
+## Deployment
+
+### Container Registry
+
+The application is containerized and available on GitHub Container Registry:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/hatchertechnology/opendismissal:latest
+
+# Run with docker-compose (uses registry image)
+docker-compose up -d
+
+# For local development (builds image locally)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+
+### Building and Pushing Images
+
+To build and push a new version to the registry:
+
+```bash
+# Build and push latest
+./build.sh
+
+# Build and push with specific version tag
+./build.sh v1.0.0
+```
+
+**Prerequisites for pushing:**
+
+1. GitHub Personal Access Token with `write:packages` scope
+2. Login to GitHub Container Registry:
+
+   ```bash
+   docker login ghcr.io -u YOUR_GITHUB_USERNAME
+   ```
+
+### Health Check
+
+The application includes comprehensive health monitoring:
+
+- **Web Interface**: <http://localhost:8000/ht/>
+- **JSON API**: <http://localhost:8000/ht/> (with `Accept: application/json` header)
+- **Docker Health Check**: Automatically monitors container health
+
+Health checks monitor:
+
+- Database connectivity
+- Redis cache backend
+- Migration status
+

@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OpenDismissal is a Django-based school dismissal management system that replaces paper-based student pickup systems with a secure, real-time digital solution. The system provides staff interfaces for logging parent arrivals and tracking student pickups with full audit logging and FERPA compliance.
 
+## Very important directions
+
+__NEVER check in secrets, API keys, or passwords. Use environment variables via .env files. Ensure that any secrets are excluded from version control (see .gitignore).__
+
 ## Development Commands
 
 All Python commands should be prefixed with `uv run`:
@@ -73,6 +77,23 @@ Uses Django Channels for WebSocket connections to provide:
 - Real-time pickup status updates
 - Staff coordination without manual refresh
 
+
+## Infrastructure and Deployment
+
+Will be deployed to Digital Ocean using their MCP. `doctl` cli is installed and configured if MCP doesn't cover a needed feature.
+
+Should be containerized using podman with the image hosted on github container registry.
+
+Kubernetes (K8s) should be used for hosting the application. Digital Ocean's managed kubernetes service should be used.
+
+The K8s MCP server is available  and should be used for managing the cluster.
+
+Secrets should be written to .env files locally as those are not checked into git. In production, secrets should be deployed via Kubernetes secrets.
+
+Local build and deployment is ok for now, but eventually should be deployed via ArgoCD or similar.
+
+
+
 ## Development Setup Notes
 
 ### Environment Configuration
@@ -98,3 +119,25 @@ Project includes Docker and Docker Compose for local development and deployment.
 - Real-time updates are critical for staff coordination during dismissal periods
 - System must handle concurrent access from multiple staff members
 - Mobile-first design for staff smartphone usage during outdoor dismissal periods
+
+
+## Acronyms
+- **K8s**: Kubernetes
+- **MCP**: Managed Container Platform
+- **FERPA**: Family Educational Rights and Privacy Act
+- **FOIA**: Freedom of Information Act
+- **ORR**: Open Records Request
+- **DO**: Digital Ocean
+- **WSGI**: Web Server Gateway Interface
+- **ASGI**: Asynchronous Server Gateway Interface
+- **DRF**: Django Rest Framework
+- **CI/CD**: Continuous Integration / Continuous Deployment
+- **API**: Application Programming Interface
+- **SSL/TLS**: Secure Sockets Layer / Transport Layer Security
+- **CRUD**: Create, Read, Update, Delete
+- **JSON**: JavaScript Object Notation
+- **HTML**: HyperText Markup Language
+- **CSS**: Cascading Style Sheets
+- **JS**: JavaScript
+- **CLI**: Command Line Interface
+- 

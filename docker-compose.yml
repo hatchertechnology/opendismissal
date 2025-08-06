@@ -1,77 +1,74 @@
-# Docker Compose configuration for OpenDismissal
-# Provides PostgreSQL, Redis, and Django services for local development and production
-version: '3.8'
+# Docker Compose configuration for OpenDismissal development environment
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL database
   postgres:
+    env_file: .env
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: opendismissal
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - opendismissal
 
-  # Redis for caching and sessions
+  # Redis cache and session store
   redis:
+    env_file: .env
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 3
-    networks:
-      - opendismissal
+      retries: 5
 
-  # Django Application
+  # Django web application
   web:
-    build: .
+    env_file: .env
+    image: ghcr.io/hatchertechnology/opendismissal:latest
+    command: >
+      sh -c "uv run python manage.py migrate &&
+             uv run python manage.py collectstatic --noinput &&
+             uv run python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=True
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - DATABASE_URL=-
-      - REDIS_URL=redis://redis:6379/1
-      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
-      - TIME_ZONE=America/New_York
+      - DEBUG=${DEBUG}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${REDIS_DB}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - TIME_ZONE=${TIME_ZONE}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      # Mount logs directory for persistent logging
-      - ./logs:/app/logs
-      # Mount static files for development
-      - ./staticfiles:/app/staticfiles
-    networks:
-      - opendismissal
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ht/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 40s
 
 volumes:
   postgres_data:
   redis_data:
+  static_volume:
+  media_volume:
 
 networks:
-  opendismissal:
-    driver: bridge
+  default:
+    name: opendismissal_network
