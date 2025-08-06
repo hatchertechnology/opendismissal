@@ -32,6 +32,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("dissmissal/", include("dissmissal.urls")),
     path("sw.js", serve_service_worker, name="service_worker"),
+    path("ht/", include("health_check.urls")),
     # Redirect root to dashboard
     path("", lambda request: redirect("dissmissal:dashboard")),
 ]

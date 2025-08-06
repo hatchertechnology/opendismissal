@@ -38,6 +38,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party apps
     "django_ratelimit",  # For rate limiting
+    "health_check",  # Django health check
+    "health_check.db",  # Database health check
+    "health_check.cache",  # Cache health check
+    "health_check.contrib.migrations",  # Migrations health check
     # Local apps
     "dissmissal",
 ]
@@ -94,10 +98,11 @@ elif "sqlite" in DATABASES["default"]["ENGINE"]:
 # Cache configuration with fallback
 try:
     import django_redis
+    REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/1")
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+            "LOCATION": REDIS_URL,
             "KEY_PREFIX": "opendismissal",
             "TIMEOUT": 300,  # 5 minutes default
             "OPTIONS": {
