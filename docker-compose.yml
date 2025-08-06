@@ -45,7 +45,7 @@ services:
     environment:
       - DEBUG=True
       - SECRET_KEY=dev-secret-key-change-in-production
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/opendismissal
+      - DATABASE_URL=-
       - REDIS_URL=redis://redis:6379/1
       - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
       - TIME_ZONE=America/New_York
