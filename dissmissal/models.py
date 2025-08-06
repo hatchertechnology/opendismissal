@@ -5,11 +5,18 @@ Core models for the dismissal management system.
 Author: Derek Hayes (Developer 2) & Elena Rodriguez (Developer 1)
 """
 
-import secrets
-import string
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from .constants import (
+    STUDENT_NAME_MAX_LENGTH,
+    TEACHER_NAME_MAX_LENGTH,
+    GRADE_MAX_LENGTH,
+    STATUS_MAX_LENGTH,
+    EVENT_TYPE_MAX_LENGTH,
+    DISMISSAL_CODE_MAX_LENGTH,
+    DISMISSAL_CODE_START_VALUE,
+)
 
 
 class StudentManager(models.Manager):
@@ -48,21 +55,21 @@ class Student(models.Model):
     ]
 
     # Core student information
-    name = models.CharField(max_length=100, help_text="Student's full name")
+    name = models.CharField(max_length=STUDENT_NAME_MAX_LENGTH, help_text="Student's full name")
     dismissal_code = models.CharField(
-        max_length=8,
+        max_length=DISMISSAL_CODE_MAX_LENGTH,
         unique=True,
         db_index=True,
         blank=True,  # Allow blank for auto-generation
-        help_text="Unique 1-8 character alphanumeric code for parent verification. Leave blank to auto-generate starting at 100.",
+        help_text=f"Unique 1-{DISMISSAL_CODE_MAX_LENGTH} character alphanumeric code for parent verification. Leave blank to auto-generate starting at {DISMISSAL_CODE_START_VALUE}.",
     )
-    grade = models.CharField(max_length=20, help_text="Student's grade level")
-    teacher = models.CharField(max_length=100, help_text="Homeroom teacher name")
+    grade = models.CharField(max_length=GRADE_MAX_LENGTH, help_text="Student's grade level")
+    teacher = models.CharField(max_length=TEACHER_NAME_MAX_LENGTH, help_text="Homeroom teacher name")
 
     # Status tracking
     is_active = models.BooleanField(default=True, help_text="Active in current dismissal")
     current_status = models.CharField(
-        max_length=20,
+        max_length=STATUS_MAX_LENGTH,
         choices=STATUS_CHOICES,
         default="WAITING",
         db_index=True,
@@ -141,11 +148,11 @@ class Student(models.Model):
 
     @classmethod
     def generate_dismissal_code(cls):
-        """Generate unique incrementing dismissal code starting at 100"""
-        # Find the highest numeric dismissal code that's >= 100
+        f"""Generate unique incrementing dismissal code starting at {DISMISSAL_CODE_START_VALUE}"""
+        # Find the highest numeric dismissal code that's >= DISMISSAL_CODE_START_VALUE
         existing_codes = cls.objects.filter(
             dismissal_code__regex=r'^[0-9]+$',
-            dismissal_code__gte='100'
+            dismissal_code__gte=str(DISMISSAL_CODE_START_VALUE)
         ).values_list('dismissal_code', flat=True)
         
         # Convert to integers and find the maximum
@@ -153,7 +160,7 @@ class Student(models.Model):
         for code in existing_codes:
             try:
                 num = int(code)
-                if num >= 100:  # Only consider codes >= 100 for auto-increment
+                if num >= DISMISSAL_CODE_START_VALUE:  # Only consider codes >= DISMISSAL_CODE_START_VALUE for auto-increment
                     numeric_codes.append(num)
             except ValueError:
                 continue
@@ -161,7 +168,7 @@ class Student(models.Model):
         if numeric_codes:
             next_code = max(numeric_codes) + 1
         else:
-            next_code = 100  # Start at 100
+            next_code = DISMISSAL_CODE_START_VALUE  # Start at DISMISSAL_CODE_START_VALUE
         
         # Ensure the generated code doesn't conflict with any existing code
         while cls.objects.filter(dismissal_code=str(next_code)).exists():
@@ -235,12 +242,12 @@ class PickupEvent(models.Model):
         help_text="Staff member who performed this action",
     )
     event_type = models.CharField(
-        max_length=20, choices=EVENT_TYPE_CHOICES, help_text="Type of dismissal event"
+        max_length=EVENT_TYPE_MAX_LENGTH, choices=EVENT_TYPE_CHOICES, help_text="Type of dismissal event"
     )
 
     # Audit information
     dismissal_code_used = models.CharField(
-        max_length=8, help_text="The dismissal code that was used for verification"
+        max_length=DISMISSAL_CODE_MAX_LENGTH, help_text="The dismissal code that was used for verification"
     )
     timestamp = models.DateTimeField(auto_now_add=True, help_text="When this event occurred")
     notes = models.TextField(blank=True, help_text="Optional notes about this event")
