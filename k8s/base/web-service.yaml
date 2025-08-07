@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-service
+  namespace: opendismissal
+  labels:
+    app: django
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: web-service
+    app.kubernetes.io/part-of: opendismissal-demo
+  annotations:
+    service.beta.kubernetes.io/do-loadbalancer-name: "opendismissal-demo-lb"
+    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
+    service.beta.kubernetes.io/do-loadbalancer-algorithm: "round_robin"
+    service.beta.kubernetes.io/do-loadbalancer-health-check-path: "/ht/"
+    service.beta.kubernetes.io/do-loadbalancer-health-check-protocol: "http"
+    service.beta.kubernetes.io/do-loadbalancer-health-check-interval-seconds: "10"
+    service.beta.kubernetes.io/do-loadbalancer-health-check-response-timeout-seconds: "5"
+    service.beta.kubernetes.io/do-loadbalancer-health-check-unhealthy-threshold: "3"
+    service.beta.kubernetes.io/do-loadbalancer-health-check-healthy-threshold: "2"
+spec:
+  type: LoadBalancer
+  selector:
+    app: django
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+  # HTTPS port removed - SSL termination will be handled by Ingress
+  # - name: https
+  #   port: 443
+  #   targetPort: 8000
+  #   protocol: TCP
+  # Removed sessionAffinity - Django uses external session storage (Redis/DB)
+  # sessionAffinity: None

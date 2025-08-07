@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: opendismissal-demo
+  labels:
+    app: external-dns
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: dns-management
+    app.kubernetes.io/part-of: opendismissal-demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns
+  template:
+    metadata:
+      labels:
+        app: external-dns
+        app.kubernetes.io/name: opendismissal
+        app.kubernetes.io/component: dns-management
+    spec:
+      serviceAccountName: external-dns
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+      - name: external-dns
+        image: registry.k8s.io/external-dns/external-dns:v0.14.0
+        imagePullPolicy: Always
+        args:
+        - --source=service
+        - --source=ingress
+        - --domain-filter=dismiss.hatchertechnology.com
+        - --provider=cloudflare
+        - --cloudflare-proxied=false
+        - --cloudflare-dns-records-per-page=100
+        - --policy=sync
+        - --registry=txt
+        - --txt-owner-id=external-dns-opendismissal
+        - --txt-prefix=external-dns-
+        - --interval=1m
+        - --log-level=info
+        - --metrics-address=0.0.0.0:7979
+        env:
+        - name: CF_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: external-dns-secret
+              key: cloudflare-api-token
+        ports:
+        - name: metrics
+          containerPort: 7979
+          protocol: TCP
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 7979
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 7979
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3

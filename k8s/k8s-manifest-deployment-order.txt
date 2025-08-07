@@ -1,0 +1,75 @@
+Kubernetes Manifest Deployment Order for OpenDismissal Demo
+================================================================
+
+This file lists all required Kubernetes manifests in the exact order they must be applied for successful deployment.
+
+Prerequisites:
+- Container image built and pushed to ghcr.io/hatchertechnology/opendismissal:latest
+- DOKS cluster with cert-manager and nginx-ingress installed
+- Cloudflare API token with Zone:Read + DNS:Edit permissions
+- All placeholder values replaced with actual credentials
+
+Deployment Order:
+================
+
+Phase 1: Infrastructure Setup
+------------------------------
+1. k8s/namespace.yaml                           - Create opendismissal-demo namespace
+2. k8s/django-configmap.yaml                    - Django configuration (non-sensitive)
+3. k8s/django-secret.yaml                       - Django secrets (passwords, keys)
+
+Phase 2: Database Layer
+-----------------------
+4. k8s/postgresql-statefulset.yaml              - PostgreSQL database with persistent storage
+5. k8s/postgresql-service.yaml                  - Service for PostgreSQL (ClusterIP)
+
+Phase 3: Database Initialization
+---------------------------------
+6. k8s/migration-job.yaml                       - Run Django migrations
+
+Phase 4: Application Layer
+---------------------------
+7. k8s/django-deployment.yaml                   - Django application deployment
+8. k8s/django-service.yaml                      - Service for Django with LoadBalancer
+
+Phase 5: TLS and Ingress
+-------------------------
+9. k8s/cert-manager-issuers.yaml               - ClusterIssuers for Let's Encrypt
+10. k8s/ingress.yaml                           - Ingress with TLS termination
+
+Phase 6: DNS Management
+-----------------------
+11. k8s/external-dns/external-dns-secret.yaml  - Cloudflare API token secret
+12. k8s/external-dns/external-dns-rbac.yaml    - RBAC permissions for ExternalDNS
+13. k8s/external-dns/external-dns-deployment.yaml - ExternalDNS deployment
+
+Phase 7: Application Setup
+---------------------------
+14. k8s/create-superuser-job.yaml              - Create Django admin user
+15. k8s/generate-demo-data-job.yaml            - Generate demo data for testing
+
+Validation Commands After Each Phase:
+=====================================
+
+Phase 1: kubectl get namespace,configmaps,secrets -n opendismissal-demo
+Phase 2: kubectl get pods,pvc,services -l app=postgresql -n opendismissal-demo
+Phase 3: kubectl get jobs -n opendismissal-demo
+Phase 4: kubectl get pods,services -l app=django -n opendismissal-demo
+Phase 5: kubectl get ingress,certificates -n opendismissal-demo
+Phase 6: kubectl get pods -l app=external-dns -n opendismissal-demo
+Phase 7: kubectl get jobs -n opendismissal-demo
+
+Final Validation:
+================
+- DNS resolution: nslookup dismiss.hatchertechnology.com
+- HTTPS access: curl -I https://dismiss.hatchertechnology.com/ht/
+- Application access: https://dismiss.hatchertechnology.com/admin/
+
+Critical Notes:
+===============
+1. Wait for PostgreSQL to be ready before applying migration-job.yaml
+2. Wait for migrations to complete before applying django-deployment.yaml
+3. Wait for DNS propagation after ExternalDNS deployment
+4. Use staging certificates first, then switch to production
+5. All secrets must have base64-encoded values
+6. Domain must be registered and managed by Cloudflare

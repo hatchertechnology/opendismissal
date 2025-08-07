@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config
+  namespace: opendismissal-demo
+  labels:
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: configmap
+    app.kubernetes.io/part-of: opendismissal-demo
+data:
+  # Database connection parameters (non-sensitive)
+  POSTGRES_DB: "opendismissal"
+  POSTGRES_USER: "django_user"
+  POSTGRES_HOST: "postgresql-service"
+  POSTGRES_PORT: "5432"
+  
+  # Application settings
+  ALLOWED_HOSTS: "dismiss.hatchertechnology.com,localhost,127.0.0.1"
+  DEBUG: "False"
+  TIME_ZONE: "America/New_York"
+  USE_TZ: "True"
+  
+  # Session configuration (database-backed, no Redis)
+  SESSION_ENGINE: "django.contrib.sessions.backends.db"
+  SESSION_COOKIE_AGE: "86400"
+  SESSION_COOKIE_SECURE: "True"
+  SESSION_COOKIE_HTTPONLY: "True"
+  SESSION_COOKIE_SAMESITE: "Lax"
+  
+  # Static files configuration with WhiteNoise
+  STATIC_URL: "/static/"
+  STATIC_ROOT: "staticfiles/"
+  STATICFILES_STORAGE: "whitenoise.storage.CompressedManifestStaticFilesStorage"
+  
+  # Security settings
+  SECURE_BROWSER_XSS_FILTER: "True"
+  SECURE_CONTENT_TYPE_NOSNIFF: "True"
+  SECURE_HSTS_SECONDS: "31536000"
+  SECURE_HSTS_INCLUDE_SUBDOMAINS: "True"
+  SECURE_HSTS_PRELOAD: "True"
+  SECURE_SSL_REDIRECT: "True"
+  SECURE_PROXY_SSL_HEADER: "HTTP_X_FORWARDED_PROTO,https"
+  X_FRAME_OPTIONS: "DENY"
+  SECURE_REFERRER_POLICY: "strict-origin-when-cross-origin"
+  CSRF_COOKIE_SECURE: "True"
+  
+  # Database SSL configuration
+  POSTGRES_SSLMODE: "require"
+  
+  # CSRF trusted origins for HTTPS
+  CSRF_TRUSTED_ORIGINS: "https://dismiss.hatchertechnology.com"
+  
+  # Session performance optimization
+  SESSION_SAVE_EVERY_REQUEST: "False"

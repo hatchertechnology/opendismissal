@@ -141,3 +141,9 @@ When adding new Kubernetes resources:
 6. Consider production implications
 
 This structure ensures maintainable, scalable Kubernetes deployments that integrate seamlessly with OpenDismissal's proven containerization approach.
+
+
+
+IMPORTANT: Pause and wait for me to let you know I've read the overview and/or provide feedback before you create the file
+
+If it is a small file show its contents, for larger files, show any important lines. 

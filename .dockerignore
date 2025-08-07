@@ -122,3 +122,7 @@ sonar-project.properties
 
 # UV lock file (will be handled during build)
 # uv.lock - keeping this as we need it for exact dependency resolution
+
+# Kubernetes secrets - never include in container images
+k8s/*secret*.yaml
+k8s-secrets.yaml

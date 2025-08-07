@@ -1,0 +1,58 @@
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  labels:
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: certificate-issuer
+    app.kubernetes.io/part-of: opendismissal-demo
+spec:
+  acme:
+    # Let's Encrypt staging server for testing
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # Email for ACME registration and renewal notifications
+    email: admin@hatchertechnology.com
+    # Private key for ACME account
+    privateKeySecretRef:
+      name: letsencrypt-staging-private-key
+    # HTTP-01 challenge solver
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+          ingressTemplate:
+            metadata:
+              annotations:
+                kubernetes.io/ingress.class: "nginx"
+                nginx.ingress.kubernetes.io/ssl-redirect: "false"
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  labels:
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: certificate-issuer
+    app.kubernetes.io/part-of: opendismissal-demo
+spec:
+  acme:
+    # Let's Encrypt production server for real certificates
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email for ACME registration and renewal notifications
+    email: admin@hatchertechnology.com
+    # Private key for ACME account
+    privateKeySecretRef:
+      name: letsencrypt-prod-private-key
+    # HTTP-01 challenge solver
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+          ingressTemplate:
+            metadata:
+              annotations:
+                kubernetes.io/ingress.class: "nginx"
+                nginx.ingress.kubernetes.io/ssl-redirect: "false"

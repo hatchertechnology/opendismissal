@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- namespace.yaml
+- postgres-deployment.yaml
+- postgres-service.yaml
+- web-deployment.yaml
+- web-service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: opendismissal
+  app.kubernetes.io/version: "1.0.0"
+
+images:
+- name: ghcr.io/hatchertechnology/opendismissal
+  newTag: latest
