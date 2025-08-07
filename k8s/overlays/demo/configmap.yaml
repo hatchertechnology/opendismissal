@@ -16,7 +16,7 @@ data:
   POSTGRES_PORT: "5432"
   
   # Application settings
-  ALLOWED_HOSTS: "dismiss.hatchertechnology.com,localhost,127.0.0.1,10.109.0.93,10.109.0.252,10.109.0.113,10.109.0.218"
+  ALLOWED_HOSTS: "dismiss.hatchertechnology.com,localhost,127.0.0.1,10.109.0.93,10.109.0.252,10.109.0.113,10.109.0.218,134.199.133.112,134.199.133.113"
   DEBUG: "False"
   TIME_ZONE: "America/New_York"
   USE_TZ: "True"

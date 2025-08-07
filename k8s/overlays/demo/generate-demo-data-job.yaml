@@ -133,6 +133,11 @@ spec:
             configMapKeyRef:
               name: django-config
               key: USE_TZ
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: django-secrets
+              key: DATABASE_URL
         resources:
           requests:
             memory: "128Mi"

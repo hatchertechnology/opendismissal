@@ -37,16 +37,28 @@ class SecureCSPMiddleware(MiddlewareMixin):
         # Default source - only from same origin
         csp_directives.append("default-src 'self'")
         
-        # Scripts - only from same origin, no unsafe-inline or unsafe-eval
-        # If nonce is needed for specific inline scripts, add it here
-        if nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
+        # Scripts - Django admin and dismissal app require different policies
+        # Admin pages need unsafe-inline for Django admin functionality
+        # Dismissal app uses Bootstrap from CDN and inline scripts
+        if request.path.startswith('/admin/'):
+            csp_directives.append("script-src 'self' 'unsafe-inline'")
+        elif request.path.startswith('/dissmissal/'):
+            # Allow Bootstrap CDN and inline scripts for dismissal app
+            csp_directives.append("script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net")
+        elif nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
             csp_directives.append(f"script-src 'self' 'nonce-{nonce}'")
         else:
             csp_directives.append("script-src 'self'")
         
-        # Styles - only from same origin
-        # If nonce is needed for specific inline styles, add it here
-        if nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
+        # Styles - Django admin and dismissal app require different policies
+        # Admin pages need unsafe-inline for styling
+        # Dismissal app uses Bootstrap from CDN and inline styles
+        if request.path.startswith('/admin/'):
+            csp_directives.append("style-src 'self' 'unsafe-inline'")
+        elif request.path.startswith('/dissmissal/'):
+            # Allow Bootstrap CDN and inline styles for dismissal app
+            csp_directives.append("style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net")
+        elif nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
             csp_directives.append(f"style-src 'self' 'nonce-{nonce}'")
         else:
             csp_directives.append("style-src 'self'")
@@ -54,8 +66,11 @@ class SecureCSPMiddleware(MiddlewareMixin):
         # Images - self and data URIs only
         csp_directives.append("img-src 'self' data:")
         
-        # Fonts - only from same origin
-        csp_directives.append("font-src 'self'")
+        # Fonts - from same origin and CDN for Bootstrap Icons
+        if request.path.startswith('/dissmissal/'):
+            csp_directives.append("font-src 'self' data: https://cdn.jsdelivr.net")
+        else:
+            csp_directives.append("font-src 'self' data:")
         
         # Connections - self and WebSocket for real-time updates
         allowed_hosts = getattr(settings, 'ALLOWED_HOSTS', [])

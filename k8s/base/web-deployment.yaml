@@ -58,7 +58,7 @@ spec:
             cpu: "100m"
       containers:
       - name: django
-        image: ghcr.io/hatchertechnology/opendismissal:health-check-fix
+        image: ghcr.io/hatchertechnology/opendismissal:latest
         imagePullPolicy: Always
         ports:
         - name: http
@@ -109,8 +109,7 @@ spec:
             configMapKeyRef:
               name: django-config
               key: POSTGRES_SSLMODE
-        - name: DATABASE_URL
-          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=$(POSTGRES_SSLMODE)"
+        # DATABASE_URL is set in environment overlays to handle special characters properly
         - name: TIME_ZONE
           valueFrom:
             configMapKeyRef:

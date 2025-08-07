@@ -142,6 +142,11 @@ spec:
             secretKeyRef:
               name: django-secrets
               key: DJANGO_SUPERUSER_PASSWORD
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: django-secrets
+              key: DATABASE_URL
         resources:
           requests:
             memory: "128Mi"
@@ -161,7 +166,7 @@ spec:
         - name: tmp
           mountPath: /tmp
         - name: cache
-          mountPath: /app/.cache
+          mountPath: /home/appuser/.cache
       volumes:
       - name: logs
         emptyDir: {}
