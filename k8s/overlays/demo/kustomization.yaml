@@ -35,6 +35,10 @@ patches:
   target:
     kind: Deployment
     name: django
+- path: web-image-patch.yaml
+  target:
+    kind: Deployment
+    name: django
 - target:
     kind: Service
     name: postgresql-service

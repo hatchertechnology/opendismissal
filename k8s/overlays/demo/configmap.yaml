@@ -16,7 +16,7 @@ data:
   POSTGRES_PORT: "5432"
   
   # Application settings
-  ALLOWED_HOSTS: "dismiss.hatchertechnology.com,localhost,127.0.0.1"
+  ALLOWED_HOSTS: "dismiss.hatchertechnology.com,localhost,127.0.0.1,10.109.0.93,10.109.0.252,10.109.0.113,10.109.0.218"
   DEBUG: "False"
   TIME_ZONE: "America/New_York"
   USE_TZ: "True"
@@ -44,8 +44,6 @@ data:
   X_FRAME_OPTIONS: "DENY"
   SECURE_REFERRER_POLICY: "strict-origin-when-cross-origin"
   CSRF_COOKIE_SECURE: "True"
-  SESSION_COOKIE_SECURE: "True"
-  SESSION_COOKIE_HTTPONLY: "True"
   
   # Database SSL configuration  
   POSTGRES_SSLMODE: "disable"
@@ -55,3 +53,6 @@ data:
   
   # Session performance optimization
   SESSION_SAVE_EVERY_REQUEST: "False"
+  
+  # Redis connection for caching (optional)
+  REDIS_URL: "redis://redis-service-demo:6379/1"

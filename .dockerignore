@@ -1,3 +1,6 @@
+*.cast
+
+
 # Development files and directories
 .env
 .env.*

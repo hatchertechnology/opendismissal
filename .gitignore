@@ -1,9 +1,16 @@
+*.cast
+
 staticfiles/*
 
 # Kubernetes secrets - never commit real secrets
 k8s-secrets.yaml
 k8s/*secret*.yaml
+k8s/**/*secret*.yaml
 k8s/django-secret.yaml
+k8s/overlays/*/secret.yaml
+k8s/overlays/*/external-dns-secret.yaml
+*.secret.yaml
+*-secret.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

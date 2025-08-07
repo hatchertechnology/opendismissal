@@ -30,14 +30,14 @@ spec:
         fsGroup: 65534
       containers:
       - name: external-dns
-        image: registry.k8s.io/external-dns/external-dns:v0.14.0
+        image: registry.k8s.io/external-dns/external-dns:v0.15.0
         imagePullPolicy: Always
         args:
         - --source=service
         - --source=ingress
         - --domain-filter=dismiss.hatchertechnology.com
         - --provider=cloudflare
-        - --cloudflare-proxied=false
+        - --cloudflare-proxied
         - --cloudflare-dns-records-per-page=100
         - --policy=sync
         - --registry=txt

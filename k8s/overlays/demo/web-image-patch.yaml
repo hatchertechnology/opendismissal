@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django
+spec:
+  template:
+    spec:
+      containers:
+      - name: django
+        image: ghcr.io/hatchertechnology/opendismissal:health-check-fix-final

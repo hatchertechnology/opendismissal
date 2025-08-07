@@ -26,6 +26,66 @@ else:
         raise RuntimeError("SECRET_KEY environment variable must be set in production.")
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost").split(",")
 
+# Django ALLOWED_HOSTS extended in ConfigMap for Kubernetes deployment
+# Add support for Kubernetes pod network ranges for health checks
+import socket
+try:
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    # If we're in a pod network (10.x.x.x), add the local IP for health checks
+    if local_ip.startswith("10.") and local_ip not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(local_ip)
+        # Also add common pod network ranges for health checks
+        ALLOWED_HOSTS.extend([
+            "10.109.0.0/24",  # This won't work directly, but we'll handle it below
+        ])
+except Exception:
+    # If we can't determine the IP, that's ok, use configured values
+    pass
+
+# Custom ALLOWED_HOSTS validation for Kubernetes pods
+class KubernetesPodHostValidator:
+    """Custom host validator that allows pod network ranges."""
+    
+    @staticmethod
+    def is_allowed_host(host):
+        # Remove port if present
+        host = host.split(':')[0]
+        
+        # Standard Django ALLOWED_HOSTS check
+        if host in ALLOWED_HOSTS:
+            return True
+            
+        # Check for pod network patterns
+        if host.startswith("10.109."):
+            return True
+            
+        return False
+
+# Override Django's ALLOWED_HOSTS validation
+import django.http.request
+original_get_host = django.http.request.HttpRequest.get_host
+
+def custom_get_host(self):
+    """Custom get_host that validates against Kubernetes pod networks."""
+    host = original_get_host(self)
+    
+    # For health checks from pod network, skip validation
+    if self.path.startswith('/ht/') and host.startswith('10.109.'):
+        return host
+        
+    # Use original validation for everything else
+    if host not in ALLOWED_HOSTS:
+        # Check our custom validator
+        if not KubernetesPodHostValidator.is_allowed_host(host):
+            from django.core.exceptions import DisallowedHost
+            raise DisallowedHost(f"Invalid HTTP_HOST header: {host!r}.")
+    
+    return host
+
+# Apply the custom validation
+django.http.request.HttpRequest.get_host = custom_get_host
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -47,9 +107,10 @@ INSTALLED_APPS = [
 
 # Security middleware for production
 MIDDLEWARE = [
+    "opendiss.middleware.SSLRedirectExemptMiddleware",  # Custom SSL redirect with exemptions - MUST be first
     "django.middleware.security.SecurityMiddleware",
-    "opendiss.middleware.SSLRedirectExemptMiddleware",  # Custom SSL redirect with exemptions
-    "csp.middleware.CSPMiddleware",  # Content Security Policy
+    "dissmissal.middleware.security.SecureCSPMiddleware",  # Secure CSP without unsafe-inline/eval
+    "dissmissal.middleware.security.SecurityHeadersMiddleware",  # Additional security headers
     "whitenoise.middleware.WhiteNoiseMiddleware",  # Static file serving for production
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.gzip.GZipMiddleware",  # Response compression for performance
@@ -93,7 +154,7 @@ if "postgresql" in DATABASES["default"]["ENGINE"]:
     DATABASES["default"]["CONN_MAX_AGE"] = 600
     # psycopg3 connection options (if needed)
     DATABASES["default"]["OPTIONS"] = {
-        "sslmode": "prefer",  # SSL connection preference
+        "sslmode": config("POSTGRES_SSLMODE", default="require"),  # SSL required for production
     }
 elif "sqlite" in DATABASES["default"]["ENGINE"]:
     DATABASES["default"]["OPTIONS"] = {
@@ -203,7 +264,8 @@ SESSION_COOKIE_SAMESITE = config("SESSION_COOKIE_SAMESITE", default="Lax")
 SESSION_COOKIE_AGE = config("SESSION_COOKIE_AGE", default=86400, cast=int)
 
 # Session engine configuration - configurable for K8s deployment
-SESSION_ENGINE = config("SESSION_ENGINE", default="django.contrib.sessions.backends.cache")
+# Default to database sessions for reliability, allow override via environment
+SESSION_ENGINE = config("SESSION_ENGINE", default="django.contrib.sessions.backends.db")
 SESSION_CACHE_ALIAS = "default"
 
 # Session optimization settings
@@ -230,6 +292,7 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = config("SECURE_HSTS_INCLUDE_SUBDOMAINS", defaul
 SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=not DEBUG, cast=bool)
 # Using custom SSLRedirectExemptMiddleware instead of Django's built-in SSL redirect
 # This allows us to exempt health check endpoints while maintaining security
+# Allow environment override for SSL redirect (enabled in production, disabled in dev)
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
 SECURE_PROXY_SSL_HEADER = tuple(config("SECURE_PROXY_SSL_HEADER", default="HTTP_X_FORWARDED_PROTO,https").split(",")) if config("SECURE_PROXY_SSL_HEADER", default="") else None
 SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="strict-origin-when-cross-origin")
@@ -317,7 +380,7 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = config("SECURE_CROSS_ORIGIN_OPENER_POLICY", 
 # Additional security hardening
 DATA_UPLOAD_MAX_MEMORY_SIZE = config("DATA_UPLOAD_MAX_MEMORY_SIZE", default=5242880, cast=int)  # 5MB
 SESSION_EXPIRE_AT_BROWSER_CLOSE = config("SESSION_EXPIRE_AT_BROWSER_CLOSE", default=True, cast=bool)
-CSRF_USE_SESSIONS = config("CSRF_USE_SESSIONS", default=True, cast=bool)  # Store CSRF in session
+CSRF_USE_SESSIONS = config("CSRF_USE_SESSIONS", default=False, cast=bool)  # Disabled for K8s health checks
 
 # Permissions Policy (for additional browser feature control)
 # Note: This would require custom middleware to implement

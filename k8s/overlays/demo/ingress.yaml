@@ -9,12 +9,12 @@ metadata:
     app.kubernetes.io/component: ingress
     app.kubernetes.io/part-of: opendismissal-demo
   annotations:
-    # SSL/TLS configuration - disabled until cert-manager is installed
-    # cert-manager.io/cluster-issuer: "letsencrypt-staging"  # Start with staging for testing
+    # SSL/TLS configuration - using Let's Encrypt production issuer
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Using production for valid certificate
     
-    # HTTPS redirection - disabled for testing
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # HTTPS redirection - enabled for security
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     
     # Proxy settings for Django
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
@@ -27,11 +27,11 @@ metadata:
     nginx.ingress.kubernetes.io/rate-limit-burst-multiplier: "5"
 spec:
   ingressClassName: nginx
-  # TLS disabled until cert-manager is installed
-  # tls:
-  # - hosts:
-  #   - dismiss.hatchertechnology.com
-  #   secretName: django-tls-cert
+  # TLS configuration with Let's Encrypt certificate
+  tls:
+  - hosts:
+    - dismiss.hatchertechnology.com
+    secretName: django-tls-cert
   rules:
   - host: dismiss.hatchertechnology.com
     http:
