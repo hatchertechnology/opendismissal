@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-service
+spec:
+  selector:
+    app: postgresql
+    app.kubernetes.io/name: null
+    app.kubernetes.io/part-of: null
+    app.kubernetes.io/version: null
+    environment: null

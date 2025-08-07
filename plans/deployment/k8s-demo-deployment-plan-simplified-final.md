@@ -614,12 +614,12 @@ Images must be pushed to GitHub Container Registry:
 
 ```bash
 # Build and push container image
-podman build -t ghcr.io/hatchertechnology/opendismissal:latest .
-podman push ghcr.io/hatchertechnology/opendismissal:latest
+docker build -t ghcr.io/hatchertechnology/opendismissal:latest .
+docker push ghcr.io/hatchertechnology/opendismissal:latest
 
 # Tag for specific versions
-podman tag ghcr.io/hatchertechnology/opendismissal:latest ghcr.io/hatchertechnology/opendismissal:v1.0.0
-podman push ghcr.io/hatchertechnology/opendismissal:v1.0.0
+docker tag ghcr.io/hatchertechnology/opendismissal:latest ghcr.io/hatchertechnology/opendismissal:v1.0.0
+docker push ghcr.io/hatchertechnology/opendismissal:v1.0.0
 ```
 
 ## Required Configuration Changes
@@ -1089,13 +1089,13 @@ dependencies = [
 **Container Build and Push Commands:**
 ```bash
 # Build container image
-podman build -t opendismissal:latest .
+docker build -t opendismissal:latest .
 
 # Tag for GitHub Container Registry
-podman tag opendismissal:latest ghcr.io/hatchertechnology/opendismissal:latest
+docker tag opendismissal:latest ghcr.io/hatchertechnology/opendismissal:latest
 
 # Push to registry (requires GHCR authentication)
-podman push ghcr.io/hatchertechnology/opendismissal:latest
+docker push ghcr.io/hatchertechnology/opendismissal:latest
 ```
 
 ### Deployment Troubleshooting

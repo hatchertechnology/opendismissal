@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-demo
+  namespace: opendismissal-demo
+  labels:
+    app: redis
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: cache-service
+    app.kubernetes.io/part-of: opendismissal-demo
+    environment: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      app.kubernetes.io/name: opendismissal
+      app.kubernetes.io/part-of: opendismissal-demo
+      app.kubernetes.io/version: "1.0.0"
+      environment: demo
+  template:
+    metadata:
+      labels:
+        app: redis
+        app.kubernetes.io/name: opendismissal
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: cache-service
+        app.kubernetes.io/part-of: opendismissal-demo
+        environment: demo
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999

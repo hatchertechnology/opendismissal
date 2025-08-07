@@ -31,6 +31,22 @@ patches:
     - op: add
       path: /metadata/labels/environment
       value: demo
+- path: web-deployment-patch.yaml
+  target:
+    kind: Deployment
+    name: django
+- target:
+    kind: Service
+    name: postgresql-service
+  patch: |-
+    - op: replace
+      path: /spec/selector
+      value:
+        app: postgresql
+- path: postgresql-statefulset-patch.yaml
+  target:
+    kind: StatefulSet
+    name: postgresql
 
 commonLabels:
   app.kubernetes.io/part-of: opendismissal-demo

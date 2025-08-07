@@ -7,6 +7,7 @@ Author: Derek Hayes (Developer 2) & Elena Rodriguez (Developer 1)
 
 from django.urls import path
 from . import views, api
+from .csp_views import csp_report_view
 
 app_name = "dissmissal"
 
@@ -56,4 +57,7 @@ urlpatterns = [
     path("api/greeter-submit/", api.greeter_submit_api, name="greeter_submit_api"),
     path("api/releaser-data/", api.releaser_data_api, name="releaser_data_api"),
     path("api/complete-pickup/", api.complete_pickup_api, name="complete_pickup_api"),
+    
+    # Security endpoints
+    path("csp-report/", csp_report_view, name="csp_report"),
 ]

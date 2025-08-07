@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: django-config
+  name: django-config-demo
   namespace: opendismissal-demo
   labels:
     app.kubernetes.io/name: opendismissal
@@ -12,11 +12,11 @@ data:
   # Database connection parameters (non-sensitive)
   POSTGRES_DB: "opendismissal"
   POSTGRES_USER: "django_user"
-  POSTGRES_HOST: "postgresql-service"
+  POSTGRES_HOST: "postgresql-service-demo"
   POSTGRES_PORT: "5432"
   
   # Application settings
-  ALLOWED_HOSTS: "dismiss.hatchertechnology.com,localhost,127.0.0.1"
+  ALLOWED_HOSTS: "*"
   DEBUG: "False"
   TIME_ZONE: "America/New_York"
   USE_TZ: "True"
@@ -46,10 +46,13 @@ data:
   CSRF_COOKIE_SECURE: "True"
   
   # Database SSL configuration
-  POSTGRES_SSLMODE: "require"
+  POSTGRES_SSLMODE: "disable"
   
   # CSRF trusted origins for HTTPS
-  CSRF_TRUSTED_ORIGINS: "https://dismiss.hatchertechnology.com"
+  CSRF_TRUSTED_ORIGINS: "https://dismissal.hatchertechnology.com,https://dismiss.hatchertechnology.com"
   
   # Session performance optimization
   SESSION_SAVE_EVERY_REQUEST: "False"
+  
+  # Redis configuration for health checks
+  REDIS_URL: "redis://redis-service-demo:6379/0"

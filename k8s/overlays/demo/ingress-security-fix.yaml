@@ -1,0 +1,85 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-ingress
+  namespace: opendismissal-demo
+  labels:
+    app.kubernetes.io/name: opendismissal
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: opendismissal-demo
+  annotations:
+    # SSL/TLS configuration - disabled until cert-manager is installed
+    # cert-manager.io/cluster-issuer: "letsencrypt-staging"  # Start with staging for testing
+    
+    # HTTPS redirection - disabled for testing
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    
+    # Proxy settings for Django
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # Rate limiting for security
+    nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "10"
+    nginx.ingress.kubernetes.io/rate-limit-burst-multiplier: "5"
+    
+    # CORS configuration for static files
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://dismiss.hatchertechnology.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-CSRFToken"
+    
+    # Security headers via Nginx (comprehensive CSP to fix console errors)
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # Content Security Policy - allows Django admin and static files
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;";
+      
+      # Cross-Origin Policies (fixes COOP errors)
+      more_set_headers "Cross-Origin-Opener-Policy: same-origin";
+      more_set_headers "Cross-Origin-Embedder-Policy: require-corp";
+      more_set_headers "Cross-Origin-Resource-Policy: same-origin";
+      
+      # Additional security headers
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()";
+      
+      # HSTS will be added when TLS is enabled
+      # more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      
+    # Whitelist static file paths explicitly
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location /static/ {
+        # Allow static files with proper caching
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options "nosniff";
+      }
+      location /media/ {
+        # Media files with moderate caching
+        add_header Cache-Control "public, max-age=3600";
+        add_header X-Content-Type-Options "nosniff";
+      }
+      
+spec:
+  ingressClassName: nginx
+  # TLS disabled until cert-manager is installed
+  # tls:
+  # - hosts:
+  #   - dismiss.hatchertechnology.com
+  #   secretName: django-tls-cert
+  rules:
+  - host: dismiss.hatchertechnology.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: django-service-demo
+            port:
+              number: 80

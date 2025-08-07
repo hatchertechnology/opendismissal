@@ -23,10 +23,11 @@ data:
   
   # Session configuration (database-backed, no Redis)
   SESSION_ENGINE: "django.contrib.sessions.backends.db"
-  SESSION_COOKIE_AGE: "86400"
+  SESSION_COOKIE_AGE: "3600"  # Reduced to 1 hour for school security
   SESSION_COOKIE_SECURE: "True"
   SESSION_COOKIE_HTTPONLY: "True"
   SESSION_COOKIE_SAMESITE: "Lax"
+  SESSION_EXPIRE_AT_BROWSER_CLOSE: "True"
   
   # Static files configuration with WhiteNoise
   STATIC_URL: "/static/"
@@ -43,15 +44,34 @@ data:
   SECURE_PROXY_SSL_HEADER: "HTTP_X_FORWARDED_PROTO,https"
   X_FRAME_OPTIONS: "DENY"
   SECURE_REFERRER_POLICY: "strict-origin-when-cross-origin"
+  
+  # Cross-Origin Policies (fixes COOP errors)
+  SECURE_CROSS_ORIGIN_OPENER_POLICY: "same-origin"
+  
+  # CSRF settings
   CSRF_COOKIE_SECURE: "True"
-  SESSION_COOKIE_SECURE: "True"
-  SESSION_COOKIE_HTTPONLY: "True"
+  CSRF_COOKIE_HTTPONLY: "True"
+  CSRF_COOKIE_SAMESITE: "Lax"
+  CSRF_TRUSTED_ORIGINS: "https://dismiss.hatchertechnology.com"
+  CSRF_USE_SESSIONS: "True"
   
   # Database SSL configuration  
   POSTGRES_SSLMODE: "disable"
   
-  # CSRF trusted origins for HTTPS
-  CSRF_TRUSTED_ORIGINS: "https://dismiss.hatchertechnology.com"
-  
   # Session performance optimization
   SESSION_SAVE_EVERY_REQUEST: "False"
+  
+  # CSP Configuration (fixes static file blocking)
+  # Note: These would be used if django-csp is installed
+  CSP_DEFAULT_SRC: "'self'"
+  CSP_SCRIPT_SRC: "'self' 'unsafe-inline' 'unsafe-eval'"
+  CSP_STYLE_SRC: "'self' 'unsafe-inline'"
+  CSP_IMG_SRC: "'self' data: https:"
+  CSP_FONT_SRC: "'self' data:"
+  CSP_CONNECT_SRC: "'self'"
+  CSP_FRAME_ANCESTORS: "'none'"
+  CSP_BASE_URI: "'self'"
+  CSP_FORM_ACTION: "'self'"
+  
+  # Additional security settings
+  DATA_UPLOAD_MAX_MEMORY_SIZE: "5242880"  # 5MB max upload

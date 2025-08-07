@@ -72,11 +72,19 @@ The application stack requires:
 1. **PostgreSQL 16** - Primary database
 2. **Redis 7** - Session storage and message broker
 3. **Django Web App** - Main application with WebSocket support
+4. **External DNS with Cloudflare** - Automatic DNS record management
 
 Service dependencies should be managed through:
 - `dependsOn` in Kustomize
 - Init containers for database readiness
 - Proper service discovery via DNS
+
+### DNS Management
+**IMPORTANT**: This project uses **Cloudflare** as the DNS provider for External DNS:
+- Complete setup guide: `docs/k8-external-dns-cloudflare.md`
+- Cloudflare API tokens are required for DNS record automation
+- External DNS automatically creates and manages DNS records for Kubernetes services and ingresses
+- Use the Cloudflare provider configuration, not Digital Ocean DNS
 
 ### Security Considerations
 - Never commit actual secrets to git

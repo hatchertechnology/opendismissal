@@ -82,7 +82,7 @@ Uses Django Channels for WebSocket connections to provide:
 
 Will be deployed to Digital Ocean using their MCP. `doctl` cli is installed and configured if MCP doesn't cover a needed feature.
 
-Should be containerized using podman with the image hosted on github container registry.
+Should be containerized using docker with the image hosted on github container registry.
 
 Kubernetes (K8s) should be used for hosting the application. Digital Ocean's managed kubernetes service should be used.
 
@@ -91,6 +91,15 @@ The K8s MCP server is available  and should be used for managing the cluster.
 Secrets should be written to .env files locally as those are not checked into git. In production, secrets should be deployed via Kubernetes secrets.
 
 Local build and deployment is ok for now, but eventually should be deployed via ArgoCD or similar.
+
+### DNS Configuration
+
+**IMPORTANT**: This project uses **Cloudflare** as the DNS provider for external DNS management.
+
+- External DNS configuration and setup documentation: `docs/k8-external-dns-cloudflare.md`
+- Cloudflare API tokens are required for automatic DNS record management
+- External DNS uses the Cloudflare provider to automatically create and manage DNS records for Kubernetes services and ingresses
+- Zone management, API authentication, and RBAC configuration are all documented in the Cloudflare-specific setup guide
 
 
 
@@ -140,4 +149,5 @@ Project includes Docker and Docker Compose for local development and deployment.
 - **CSS**: Cascading Style Sheets
 - **JS**: JavaScript
 - **CLI**: Command Line Interface
-- 
+- **CF**: Cloudflare (DNS provider)
+- **RBAC**: Role-Based Access Control

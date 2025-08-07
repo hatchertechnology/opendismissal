@@ -34,12 +34,14 @@ COPY . .
 RUN mkdir -p /app/logs
 
 # Set required environment variables for build stage
-ENV DEBUG=False \
+ENV DEBUG=True \
+    SECRET_KEY=build-time-key-only \
     DATABASE_URL=sqlite:///build.sqlite3 \
-    ALLOWED_HOSTS=localhost
+    ALLOWED_HOSTS=localhost \
+    STATICFILES_STORAGE=whitenoise.storage.CompressedManifestStaticFilesStorage
 
-# Collect static files (requires Django settings to be available)
-RUN --mount=type=secret,id=BUILD_DSKEY,env=SECRET_KEY uv run python manage.py collectstatic --noinput --clear
+# Collect static files with WhiteNoise compression
+RUN uv run python manage.py collectstatic --noinput --clear
 
 # Production stage - Minimal runtime image
 FROM python:3.13-slim AS production
