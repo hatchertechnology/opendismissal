@@ -43,8 +43,8 @@ class SecureCSPMiddleware(MiddlewareMixin):
         if request.path.startswith('/admin/'):
             csp_directives.append("script-src 'self' 'unsafe-inline'")
         elif request.path.startswith('/dissmissal/'):
-            # Allow Bootstrap CDN and inline scripts for dismissal app
-            csp_directives.append("script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net")
+            # Allow inline scripts for dismissal app (Bootstrap now served locally)
+            csp_directives.append("script-src 'self' 'unsafe-inline'")
         elif nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
             csp_directives.append(f"script-src 'self' 'nonce-{nonce}'")
         else:
