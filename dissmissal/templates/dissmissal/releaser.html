@@ -314,7 +314,7 @@
         </div>
     </div>
     
-    <script>
+    <script nonce="{{ request.csp_nonce }}">
         // Ultra-simple, bulletproof JavaScript
         (function() {
             'use strict';
@@ -413,7 +413,7 @@
                             </div>
                         </div>
                         <div class="arrival-time">Arrived at ${escapeHtml(student.arrived_at)}</div>
-                        <button class="complete-btn" onclick="completePickup(${student.id}, this)">
+                        <button class="complete-btn" data-complete-pickup="${student.id}">
                             Complete Pickup
                         </button>
                     </div>
