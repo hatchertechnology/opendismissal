@@ -153,7 +153,7 @@
     </div>
 {% endblock %}
 {% block extra_js %}
-    <script>
+    <script nonce="{{ request.csp_nonce }}">
         document.addEventListener('DOMContentLoaded', function() {
             const codeInput = document.getElementById('{{ form.dismissal_code.id_for_label }}');
             const feedbackDiv = document.getElementById('code-validation-feedback');

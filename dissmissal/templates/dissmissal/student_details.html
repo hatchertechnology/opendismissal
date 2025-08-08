@@ -259,7 +259,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ request.csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     // Copy to clipboard functionality
     window.copyToClipboard = function(text) {
