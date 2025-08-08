@@ -264,21 +264,28 @@ def clear_dashboard_cache(user_id=None):
     Args:
         user_id: Optional user ID to clear specific user cache
     """
-    from .constants import CACHE_PREFIXES
+    try:
+        from .constants import CACHE_PREFIXES
 
-    # Always clear the global stats cache when dashboard data changes
-    cache.delete(CACHE_PREFIXES["DASHBOARD_STATS"])
+        # Always clear the global stats cache when dashboard data changes
+        cache.delete(CACHE_PREFIXES["DASHBOARD_STATS"])
 
-    # Use pattern deletion if supported, otherwise fallback to targeted approach
-    if hasattr(cache, "delete_pattern"):
-        _clear_cache_with_pattern_support(user_id)
-        return
+        # Use pattern deletion if supported, otherwise fallback to targeted approach
+        if hasattr(cache, "delete_pattern"):
+            _clear_cache_with_pattern_support(user_id)
+            return
 
-    # Fallback approach for caches without pattern deletion support
-    if user_id:
-        _clear_user_specific_cache(user_id)
-    else:
-        _clear_all_users_cache()
+        # Fallback approach for caches without pattern deletion support
+        if user_id:
+            _clear_user_specific_cache(user_id)
+        else:
+            _clear_all_users_cache()
+    except Exception as e:
+        # Log cache errors but don't fail the API request
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to clear dashboard cache: {e}")
+        pass
 
 
 def sanitize_input(text, max_length=None):
@@ -465,3 +472,170 @@ def check_dismissal_code_uniqueness(code, exclude_student_id=None):
         return False, "This dismissal code is already in use by another student"
 
     return True, ""
+
+
+# Real-time broadcasting utilities for Django Channels
+
+def broadcast_parent_arrival(student, staff_member):
+    """
+    Broadcast parent arrival event to all connected WebSocket clients.
+    
+    Args:
+        student: Student model instance
+        staff_member: User who logged the arrival
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    import logging
+    
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                "dismissal_updates",
+                {
+                    "type": "student_parent_arrived",
+                    "student_id": student.id,
+                    "student_name": student.name,
+                    "dismissal_code": student.dismissal_code,
+                    "grade": student.grade,
+                    "teacher": student.teacher,
+                    "timestamp": timezone.now().isoformat(),
+                    "staff_member": staff_member.get_full_name() or staff_member.username,
+                }
+            )
+        except Exception as e:
+            # Log the error but don't fail the API request if Redis is down
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to broadcast parent arrival: {e}")
+
+
+def broadcast_student_pickup(student, staff_member):
+    """
+    Broadcast student pickup completion to all connected WebSocket clients.
+    
+    Args:
+        student: Student model instance  
+        staff_member: User who completed the pickup
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    import logging
+    
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                "dismissal_updates",
+                {
+                    "type": "student_picked_up",
+                    "student_id": student.id,
+                    "student_name": student.name,
+                    "dismissal_code": student.dismissal_code,
+                    "grade": student.grade,
+                    "teacher": student.teacher,
+                    "timestamp": timezone.now().isoformat(),
+                    "staff_member": staff_member.get_full_name() or staff_member.username,
+                }
+            )
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to broadcast student pickup: {e}")
+
+
+def broadcast_status_change(student, old_status, staff_member):
+    """
+    Broadcast student status change to all connected WebSocket clients.
+    
+    Args:
+        student: Student model instance
+        old_status: Previous status
+        staff_member: User who made the change
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    import logging
+    
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                "dismissal_updates",
+                {
+                    "type": "student_status_changed",
+                    "student_id": student.id,
+                    "student_name": student.name,
+                    "old_status": old_status,
+                    "new_status": student.current_status,
+                    "status_display": student.get_current_status_display(),
+                    "timestamp": timezone.now().isoformat(),
+                    "staff_member": staff_member.get_full_name() or staff_member.username,
+                }
+            )
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to broadcast status change: {e}")
+
+
+def broadcast_dismissal_reset(staff_member, message="Dismissal status reset"):
+    """
+    Broadcast dismissal reset event to all connected WebSocket clients.
+    
+    Args:
+        staff_member: User who performed the reset
+        message: Optional custom message
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    import logging
+    
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                "dismissal_updates",
+                {
+                    "type": "dismissal_reset",
+                    "message": message,
+                    "timestamp": timezone.now().isoformat(),
+                    "staff_member": staff_member.get_full_name() or staff_member.username,
+                }
+            )
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to broadcast dismissal reset: {e}")
+
+
+def broadcast_bulk_action(action, affected_students, success_count, failed_count, staff_member):
+    """
+    Broadcast bulk action completion to all connected WebSocket clients.
+    
+    Args:
+        action: Type of bulk action performed
+        affected_students: List of student IDs affected
+        success_count: Number of successful operations
+        failed_count: Number of failed operations
+        staff_member: User who performed the action
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    import logging
+    
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                "dismissal_updates",
+                {
+                    "type": "bulk_action_completed",
+                    "action": action,
+                    "affected_students": affected_students,
+                    "success_count": success_count,
+                    "failed_count": failed_count,
+                    "timestamp": timezone.now().isoformat(),
+                    "staff_member": staff_member.get_full_name() or staff_member.username,
+                }
+            )
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to broadcast bulk action: {e}")

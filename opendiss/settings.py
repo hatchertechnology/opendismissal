@@ -88,6 +88,7 @@ django.http.request.HttpRequest.get_host = custom_get_host
 
 # Application definition
 INSTALLED_APPS = [
+    "daphne",  # ASGI server for Django Channels
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -95,6 +96,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # Third-party apps
+    "channels",  # Django Channels for WebSocket support
     "django_ratelimit",  # For rate limiting
     "health_check",  # Django health check
     "health_check.db",  # Database health check
@@ -140,6 +142,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "opendiss.wsgi.application"
+ASGI_APPLICATION = "opendiss.asgi.application"
 
 # Database configuration with environment variables
 DATABASES = {
@@ -189,6 +192,34 @@ except ImportError:
             "TIMEOUT": 300,
         }
     }
+
+# Channel Layers configuration for Django Channels
+# Uses Redis as the channel layer backend for multi-browser WebSocket synchronization
+try:
+    import importlib.util
+
+    if importlib.util.find_spec("channels") is not None:
+        REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/1")
+        CHANNEL_LAYERS = {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [REDIS_URL],
+                    "capacity": 1500,  # Maximum number of messages to buffer
+                    "expiry": 60,  # Message expiry time in seconds
+                },
+            },
+        }
+    else:
+        # Fallback to in-memory channel layer if channels_redis is not available
+        CHANNEL_LAYERS = {
+            "default": {
+                "BACKEND": "channels.layers.InMemoryChannelLayer"
+            }
+        }
+except ImportError:
+    # If channels is not installed, this will be ignored
+    pass
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
