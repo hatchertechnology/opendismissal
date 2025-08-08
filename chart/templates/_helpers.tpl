@@ -48,3 +48,11 @@ app: {{ .Values.appLabel }}
 {{- include "opendismissal.fullname" . -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "opendismissal.demoDataServiceAccountName" -}}
+{{- if .Values.jobs.demoData.serviceAccountName -}}
+{{- .Values.jobs.demoData.serviceAccountName -}}
+{{- else -}}
+{{- printf "%s-demo-data-sa" (include "opendismissal.fullname" .) -}}
+{{- end -}}
+{{- end -}}

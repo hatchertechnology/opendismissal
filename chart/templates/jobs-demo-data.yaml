@@ -17,9 +17,7 @@ spec:
         {{- include "opendismissal.labels" . | nindent 8 }}
     spec:
       restartPolicy: OnFailure
-      {{- if .Values.jobs.demoData.serviceAccountName }}
-      serviceAccountName: {{ .Values.jobs.demoData.serviceAccountName }}
-      {{- end }}
+      serviceAccountName: {{ include "opendismissal.demoDataServiceAccountName" . }}
       {{- if .Values.podSecurityContext.enabled }}
       securityContext:
         {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
