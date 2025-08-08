@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenDismissal Real-time Demo</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb;
+        }
+        .log { 
+            background-color: #f8f9fa; 
+            border: 1px solid #dee2e6;
+            padding: 15px; 
+            height: 400px; 
+            overflow-y: auto; 
+            font-family: monospace;
+            font-size: 14px;
+            margin: 20px 0;
+        }
+        .event { 
+            padding: 5px; 
+            margin: 5px 0; 
+            border-radius: 3px;
+        }
+        .parent-arrived { 
+            background-color: #fff3cd; 
+            border-left: 4px solid #ffc107;
+        }
+        .pickup-completed { 
+            background-color: #d1ecf1; 
+            border-left: 4px solid #17a2b8;
+        }
+        .status-changed { 
+            background-color: #e2e3e5; 
+            border-left: 4px solid #6c757d;
+        }
+        .dismissal-reset { 
+            background-color: #f8d7da; 
+            border-left: 4px solid #dc3545;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OpenDismissal Real-time Sync Demo</h1>
+        <p>This demo shows how real-time updates are broadcast to all connected browsers when dismissal events occur.</p>
+        
+        <div id="connection-status" class="status disconnected">
+            Disconnected from WebSocket
+        </div>
+
+        <div>
+            <button onclick="connect()" id="connect-btn">Connect</button>
+            <button onclick="disconnect()" id="disconnect-btn" disabled>Disconnect</button>
+            <button onclick="clearLog()" id="clear-btn">Clear Log</button>
+        </div>
+
+        <div id="log" class="log">
+            <div>WebSocket connection log will appear here...</div>
+        </div>
+
+        <div>
+            <h3>How to test:</h3>
+            <ol>
+                <li>Click "Connect" to establish WebSocket connection</li>
+                <li>Open another browser tab/window to this same page and connect</li>
+                <li>Use the OpenDismissal mobile interface or API to log parent arrivals or complete pickups</li>
+                <li>Watch real-time updates appear in both browser windows instantly</li>
+            </ol>
+            
+            <h4>Events to watch for:</h4>
+            <ul>
+                <li><strong>Parent Arrived:</strong> When a parent checks in using their dismissal code</li>
+                <li><strong>Pickup Completed:</strong> When a student is released to their parent</li>
+                <li><strong>Status Changed:</strong> When a student's status is manually updated</li>
+                <li><strong>Dismissal Reset:</strong> When all students are reset to "Waiting" status</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        function log(message, className = '') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `event ${className}`;
+            entry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusDiv = document.getElementById('connection-status');
+            const connectBtn = document.getElementById('connect-btn');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+            
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Connected to WebSocket';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Disconnected from WebSocket';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function connect() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                return;
+            }
+
+            // Use relative URL so it works with any domain
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}/ws/dismissal/`;
+            
+            log('Attempting to connect to WebSocket...', 'status-changed');
+            
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = function(event) {
+                log('WebSocket connected successfully', 'pickup-completed');
+                updateConnectionStatus(true);
+                reconnectAttempts = 0;
+            };
+
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                switch(data.type) {
+                    case 'parent_arrived':
+                        log(`Parent arrived for ${data.student_name} (${data.dismissal_code}) - ${data.grade} - ${data.teacher}`, 'parent-arrived');
+                        break;
+                    case 'pickup_completed':
+                        log(`Pickup completed for ${data.student_name} (${data.dismissal_code})`, 'pickup-completed');
+                        break;
+                    case 'status_changed':
+                        log(`Status changed for ${data.student_name}: ${data.old_status} → ${data.new_status}`, 'status-changed');
+                        break;
+                    case 'dismissal_reset':
+                        log(`Dismissal reset: ${data.message}`, 'dismissal-reset');
+                        break;
+                    case 'bulk_action':
+                        log(`Bulk action ${data.action}: ${data.success_count} succeeded, ${data.failed_count} failed`, 'status-changed');
+                        break;
+                    default:
+                        log(`Unknown event: ${JSON.stringify(data)}`, 'status-changed');
+                }
+            };
+
+            socket.onerror = function(error) {
+                log(`WebSocket error: ${error}`, 'dismissal-reset');
+                console.error('WebSocket error:', error);
+            };
+
+            socket.onclose = function(event) {
+                log(`WebSocket closed (code: ${event.code}, reason: ${event.reason})`, 'dismissal-reset');
+                updateConnectionStatus(false);
+                
+                // Attempt to reconnect if not a normal closure
+                if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    const delay = Math.pow(2, reconnectAttempts) * 1000; // Exponential backoff
+                    log(`Attempting to reconnect in ${delay/1000} seconds... (attempt ${reconnectAttempts}/${maxReconnectAttempts})`, 'status-changed');
+                    setTimeout(connect, delay);
+                }
+            };
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close(1000, 'User requested disconnect');
+                socket = null;
+                log('WebSocket disconnected by user', 'status-changed');
+                updateConnectionStatus(false);
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '<div>Log cleared...</div>';
+        }
+
+        // Auto-connect on page load if protocol is available
+        window.onload = function() {
+            // Only auto-connect if running on a server (not file://)
+            if (location.protocol !== 'file:') {
+                connect();
+            } else {
+                log('Demo running from file://. Please serve from a web server to test WebSocket functionality.', 'dismissal-reset');
+            }
+        };
+
+        // Clean up on page unload
+        window.onbeforeunload = function() {
+            if (socket) {
+                socket.close(1000, 'Page unload');
+            }
+        };
+    </script>
+</body>
+</html>

@@ -260,6 +260,15 @@ def quick_pickup_api(request):
 
             clear_dashboard_cache()
 
+            # Broadcast real-time update after DB commit
+            def notify_quick_pickup():
+                from .utils import broadcast_student_pickup
+                # Refresh student to get latest status before broadcasting
+                student.refresh_from_db()
+                broadcast_student_pickup(student, request.user)
+            
+            transaction.on_commit(notify_quick_pickup)
+
             # Refresh student data
             student.refresh_from_db()
 
@@ -489,6 +498,16 @@ def reset_all_api(request):
 
             clear_dashboard_cache()
 
+            # Broadcast reset event after DB commit
+            def notify_reset():
+                from .utils import broadcast_dismissal_reset
+                broadcast_dismissal_reset(
+                    request.user, 
+                    f"Successfully reset {reset_count} students to 'Waiting for Parent' status"
+                )
+            
+            transaction.on_commit(notify_reset)
+
             response = JsonResponse(
                 {
                     "success": True,
@@ -575,6 +594,13 @@ def greeter_submit_api(request):
                     # Clear cache to update other interfaces
                     clear_dashboard_cache()
 
+                    # Broadcast real-time update after DB commit
+                    def notify_parent_arrival():
+                        from .utils import broadcast_parent_arrival
+                        broadcast_parent_arrival(student, request.user)
+                    
+                    transaction.on_commit(notify_parent_arrival)
+
                     return JsonResponse(
                         {
                             "success": True,
@@ -615,6 +641,8 @@ def greeter_submit_api(request):
                 "code": code if "code" in locals() else "unknown",
             },
         )
+        # Temporary debugging: show the actual error
+        # return JsonResponse({"success": False, "message": f"System error: {str(e)}"})
         return JsonResponse({"success": False, "message": "System error. Please try again."})
 
 
@@ -706,6 +734,13 @@ def complete_pickup_api(request):
 
                 # Clear cache to update other interfaces
                 clear_dashboard_cache()
+
+                # Broadcast real-time update after DB commit
+                def notify_student_pickup():
+                    from .utils import broadcast_student_pickup
+                    broadcast_student_pickup(student, request.user)
+                
+                transaction.on_commit(notify_student_pickup)
 
                 return JsonResponse({"success": True, "message": f"{student.name} pickup complete"})
 
