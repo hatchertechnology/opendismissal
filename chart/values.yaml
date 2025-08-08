@@ -153,6 +153,7 @@ secret:
     DJANGO_SUPERUSER_USERNAME: ""
     DJANGO_SUPERUSER_EMAIL: ""
     DJANGO_SUPERUSER_PASSWORD: ""
+    DATABASE_URL: ""
 
 initDb:
   enabled: true
@@ -197,3 +198,8 @@ affinity: {}
 jobs:
   migrate:
     enabled: false
+  superuser:
+    enabled: false
+  demoData:
+    enabled: false
+    serviceAccountName: ""
