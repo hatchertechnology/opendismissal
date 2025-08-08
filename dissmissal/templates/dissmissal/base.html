@@ -136,7 +136,8 @@
                         <li class="nav-item">
                             <a class="nav-link {% if request.resolver_match.url_name == 'student_pickup' %}active{% endif %}"
                                href="#"
-                               onclick="showMessage('Please select a student from the dashboard to complete pickup', 'info')">
+                               id="complete-pickup-link"
+                               data-message="Please select a student from the dashboard to complete pickup">
                                 <i class="bi bi-check-circle me-1"></i>
                                 Complete Pickup
                             </a>
@@ -146,8 +147,7 @@
                                type="button"
                                id="mobileDropdown" 
                                data-bs-toggle="dropdown" 
-                               aria-expanded="false"
-                               onkeydown="if(event.key==='Enter'||event.key===' '){this.click();}">
+                               aria-expanded="false">
                                 <i class="bi bi-phone me-1"></i>
                                 Mobile
                             </button>
@@ -180,8 +180,7 @@
                                type="button"
                                id="studentsDropdown" 
                                data-bs-toggle="dropdown" 
-                               aria-expanded="false"
-                               onkeydown="if(event.key==='Enter'||event.key===' '){this.click();}">
+                               aria-expanded="false">
                                 <i class="bi bi-people me-1"></i>
                                 Students
                             </button>

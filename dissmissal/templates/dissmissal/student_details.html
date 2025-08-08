@@ -158,10 +158,11 @@
                         <dd class="col-sm-6">
                             <code class="user-select-all">{{ student.dismissal_code }}</code>
                             <button class="btn btn-sm btn-outline-secondary ms-1" 
-                                    onclick="copyToClipboard('{{ student.dismissal_code }}')"
+                                    data-copy="{{ student.dismissal_code }}"
                                     title="Copy to clipboard"
                                     aria-label="Copy dismissal code {{ student.dismissal_code }} to clipboard">
                                 <i class="bi bi-clipboard" aria-hidden="true"></i>
+                                <span class="d-none d-md-inline">Copy</span>
                             </button>
                         </dd>
                         

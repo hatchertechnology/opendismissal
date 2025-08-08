@@ -218,7 +218,50 @@ const OpenDismissal = {
                 }
             }
         });
-        
+
+        // Replace inline complete-pickup message link
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('#complete-pickup-link');
+            if (link) {
+                e.preventDefault();
+                const msg = link.getAttribute('data-message') || 'Please select a student from the dashboard to complete pickup';
+                OpenDismissal.utils.showMessage(msg, 'info');
+            }
+        });
+
+        // Handle refresh button click without inline JS
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('#refresh-btn');
+            if (btn && typeof window.refreshDashboard === 'function') {
+                e.preventDefault();
+                window.refreshDashboard();
+            }
+        });
+
+        // Copy-to-clipboard handler for elements with data-copy
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-copy]');
+            if (btn) {
+                const text = btn.getAttribute('data-copy');
+                if (navigator.clipboard && text) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        OpenDismissal.utils.showMessage('Copied to clipboard', 'success');
+                    }).catch(() => {
+                        OpenDismissal.utils.showMessage('Copy failed', 'error');
+                    });
+                }
+            }
+        });
+
+        // Complete pickup buttons in releaser page
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-complete-pickup]');
+            if (btn && typeof window.completePickup === 'function') {
+                const studentId = btn.getAttribute('data-complete-pickup');
+                window.completePickup(Number(studentId), btn);
+            }
+        });
+
         // Global keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // Alt + D = Dashboard
@@ -226,19 +269,22 @@ const OpenDismissal = {
                 e.preventDefault();
                 window.location.href = '/dissmissal/';
             }
-            
             // Alt + A = Parent Arrival
             if (e.altKey && e.key === 'a') {
                 e.preventDefault();
                 window.location.href = '/dissmissal/arrival/';
             }
-            
             // Alt + P = Student Pickup
             if (e.altKey && e.key === 'p') {
                 e.preventDefault();
                 window.location.href = '/dissmissal/pickup/';
             }
-            
+            // Space/Enter to open dropdowns (accessibility) when focused
+            const active = document.activeElement;
+            if ((e.key === 'Enter' || e.key === ' ') && active && active.matches('[data-bs-toggle="dropdown"]')) {
+                e.preventDefault();
+                active.click();
+            }
             // Escape = Close modals
             if (e.key === 'Escape') {
                 const openModal = document.querySelector('.modal.show');
@@ -250,7 +296,7 @@ const OpenDismissal = {
                 }
             }
         });
-        
+
         // Touch and gesture handling for mobile
         if ('ontouchstart' in window) {
             this.setupTouchHandling();
