@@ -30,6 +30,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "opendismissal.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "opendismissal.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app: {{ .Values.appLabel }}
 {{- end -}}
 
 {{- define "opendismissal.serviceAccountName" -}}
@@ -37,5 +38,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default (include "opendismissal.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "opendismissal.serviceName" -}}
+{{- if .Values.service.nameOverride -}}
+{{- .Values.service.nameOverride -}}
+{{- else -}}
+{{- include "opendismissal.fullname" . -}}
 {{- end -}}
 {{- end -}}

@@ -5,11 +5,13 @@
 nameOverride: ""
 fullnameOverride: ""
 
+appLabel: django
+
 image:
-  repository: ghcr.io/your-org/opendismissal
-  pullPolicy: IfNotPresent
+  repository: ghcr.io/hatchertechnology/opendismissal
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "latest"
 
 imagePullSecrets: []
 # - name: my-registry-secret
@@ -32,12 +34,14 @@ podLabels: {}
 
 podSecurityContext:
   enabled: true
-  fsGroup: 10001
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
 
 securityContext:
   enabled: true
-  runAsUser: 10001
-  runAsGroup: 10001
+  runAsUser: 1000
+  runAsGroup: 1000
   runAsNonRoot: true
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
@@ -46,37 +50,44 @@ securityContext:
       - ALL
 
 service:
-  type: ClusterIP
+  type: LoadBalancer
+  nameOverride: ""
   port: 80
-  targetPort: 8080
+  targetPort: 8000
   annotations: {}
   labels: {}
 
-containerPort: 8080
+containerPort: 8000
 
 resources:
   limits:
     cpu: 500m
     memory: 512Mi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 200m
+    memory: 256Mi
 
 livenessProbe:
-  enabled: false
+  enabled: true
   httpGet:
-    path: /healthz
+    path: /ht/
     port: http
-  initialDelaySeconds: 10
-  periodSeconds: 10
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
 
 readinessProbe:
-  enabled: false
+  enabled: true
   httpGet:
-    path: /readyz
+    path: /ht/
     port: http
-  initialDelaySeconds: 5
+  initialDelaySeconds: 15
   periodSeconds: 10
+  timeoutSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
 
 autoscaling:
   enabled: false
@@ -87,27 +98,85 @@ autoscaling:
 
 ingress:
   enabled: false
-  className: ""
+  className: "nginx"
   annotations: {}
   hosts:
-    - host: chart-example.local
+    - host: example.com
       paths:
         - path: /
           pathType: Prefix
   tls: []
-  # - secretName: chart-example-tls
+  # - secretName: django-tls-cert
   #   hosts:
-  #     - chart-example.local
+  #     - example.com
+
+configMap:
+  create: true
+  name: django-config
+  data:
+    POSTGRES_DB: "opendismissal"
+    POSTGRES_USER: "django_user"
+    POSTGRES_HOST: "postgresql-service"
+    POSTGRES_PORT: "5432"
+    ALLOWED_HOSTS: "*"
+    DEBUG: "False"
+    TIME_ZONE: "America/New_York"
+    USE_TZ: "True"
+    SESSION_ENGINE: "django.contrib.sessions.backends.db"
+    SESSION_COOKIE_AGE: "86400"
+    SESSION_COOKIE_SECURE: "True"
+    SESSION_COOKIE_HTTPONLY: "True"
+    SESSION_COOKIE_SAMESITE: "Lax"
+    STATIC_URL: "/static/"
+    STATIC_ROOT: "staticfiles/"
+    STATICFILES_STORAGE: "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    SECURE_BROWSER_XSS_FILTER: "True"
+    SECURE_CONTENT_TYPE_NOSNIFF: "True"
+    SECURE_HSTS_SECONDS: "31536000"
+    SECURE_HSTS_INCLUDE_SUBDOMAINS: "True"
+    SECURE_HSTS_PRELOAD: "True"
+    SECURE_SSL_REDIRECT: "True"
+    SECURE_PROXY_SSL_HEADER: "HTTP_X_FORWARDED_PROTO,https"
+    X_FRAME_OPTIONS: "DENY"
+    SECURE_REFERRER_POLICY: "strict-origin-when-cross-origin"
+    CSRF_COOKIE_SECURE: "True"
+    POSTGRES_SSLMODE: "disable"
+    CSRF_TRUSTED_ORIGINS: "https://dismissal.hatchertechnology.com,https://dismiss.hatchertechnology.com"
+    REDIS_URL: "redis://redis-service:6379/0"
+
+secret:
+  create: false
+  name: django-secrets
+  stringData:
+    SECRET_KEY: ""
+    POSTGRES_PASSWORD: ""
+    DJANGO_SUPERUSER_USERNAME: ""
+    DJANGO_SUPERUSER_EMAIL: ""
+    DJANGO_SUPERUSER_PASSWORD: ""
+
+initDb:
+  enabled: true
+  image: postgres:16-alpine
+  command: |
+    echo "Waiting for database to be ready and migrations to complete..."
+    until PGPASSWORD=$POSTGRES_PASSWORD pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
+      echo "Waiting for PostgreSQL to be ready..."
+      sleep 5
+    done
+    echo "Database is ready! Django app can start."
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
 
 env: []
-# - name: JAVA_OPTS
-#   value: "-Xms256m -Xmx512m"
+# - name: EXTRA_ENV
+#   value: "value"
 
 envFrom: []
-# - secretRef:
-#     name: my-secret
-# - configMapRef:
-#     name: my-config
 
 extraVolumes: []
 # - name: extra-config
@@ -124,3 +193,7 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+jobs:
+  migrate:
+    enabled: false

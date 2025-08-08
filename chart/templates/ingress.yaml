@@ -23,7 +23,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "opendismissal.fullname" $ }}
+                name: {{ include "opendismissal.serviceName" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
