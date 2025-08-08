@@ -1,0 +1,32 @@
+{{- if .Values.jobs.demoData.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "opendismissal.demoDataServiceAccountName" . }}
+  labels:
+    {{- include "opendismissal.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "opendismissal.fullname" . }}-demo-data-role
+  labels:
+    {{- include "opendismissal.labels" . | nindent 4 }}
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "opendismissal.fullname" . }}-demo-data-rolebinding
+  labels:
+    {{- include "opendismissal.labels" . | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "opendismissal.demoDataServiceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "opendismissal.fullname" . }}-demo-data-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
