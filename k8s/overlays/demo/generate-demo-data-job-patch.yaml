@@ -5,6 +5,10 @@ metadata:
 spec:
   template:
     spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       initContainers:
       - name: wait-for-db
         command:
@@ -17,6 +21,16 @@ spec:
           done
           echo "PostgreSQL is ready!"
         env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: django-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: django-secrets
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_HOST
           valueFrom:
             configMapKeyRef:
@@ -29,6 +43,10 @@ spec:
               key: POSTGRES_PORT
       containers:
       - name: generate-demo-data
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
         env:
         # Use DATABASE_URL from secret with properly encoded password
         - name: DATABASE_URL

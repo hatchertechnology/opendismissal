@@ -10,7 +10,7 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
         <title>
             {% block title %}OpenDismissal{% endblock %}
-        - {{ page_title|default:"School Dismissal System" }}</title>
+        {{ page_title|default:"School Dismissal System" }}</title>
         {% load static %}
         <!-- Bootstrap 5.3 CSS (Local) -->
         <link href="{% static 'dissmissal/vendor/bootstrap/css/bootstrap.min.css' %}"

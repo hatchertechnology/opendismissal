@@ -1,19 +1,26 @@
+import os
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 
 
 class CSPHeaderTests(TestCase):
+    """Test CSP headers are correctly configured for different page types."""
+    
     def setUp(self):
+        """Set up test user with secure password handling."""
         self.client = Client()
+        # Use environment variable or secure test password
+        self.test_password = os.environ.get("TEST_STAFF_PASSWORD", "test-secure-pass-2024")
         self.staff_user = User.objects.create_user(
             username="staffuser",
-            password="password123",
+            password=self.test_password,
             is_staff=True,
         )
 
     def test_csp_on_dismissal_pages_is_local_only_with_nonce(self):
+        """Test CSP headers on dismissal pages allow only local resources with nonce."""
         # Login as staff to access dismissal pages
-        self.client.login(username="staffuser", password="password123")
+        self.client.login(username="staffuser", password=self.test_password)
 
         resp = self.client.get("/dissmissal/")
         self.assertEqual(resp.status_code, 200)
