@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django
+spec:
+  template:
+    spec:
+      containers:
+      - name: django
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+        env:
+        # Add REDIS_URL from configmap
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: django-config
+              key: REDIS_URL

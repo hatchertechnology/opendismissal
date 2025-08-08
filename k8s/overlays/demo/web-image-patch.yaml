@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
       - name: django
-        image: ghcr.io/hatchertechnology/opendismissal:health-check-fix-final
+        image: ghcr.io/hatchertechnology/opendismissal:latest

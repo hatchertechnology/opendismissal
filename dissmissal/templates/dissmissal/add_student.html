@@ -119,7 +119,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ request.csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     // Auto-focus on the name field
     const nameField = document.getElementById('{{ form.name.id_for_label }}');

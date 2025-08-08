@@ -39,6 +39,14 @@ patches:
   target:
     kind: Deployment
     name: django
+- path: web-deployment-env-patch.yaml
+  target:
+    kind: Deployment
+    name: django
+- path: web-deployment-redis-patch.yaml
+  target:
+    kind: Deployment
+    name: django
 - target:
     kind: Service
     name: postgresql-service
@@ -51,6 +59,22 @@ patches:
   target:
     kind: StatefulSet
     name: postgresql
+- path: postgresql-probes-patch.yaml
+  target:
+    kind: StatefulSet
+    name: postgresql
+- path: migration-job-patch.yaml
+  target:
+    kind: Job
+    name: django-migrate
+- path: create-superuser-job-patch.yaml
+  target:
+    kind: Job
+    name: create-superuser
+- path: generate-demo-data-job-patch.yaml
+  target:
+    kind: Job
+    name: generate-demo-data
 
 commonLabels:
   app.kubernetes.io/part-of: opendismissal-demo

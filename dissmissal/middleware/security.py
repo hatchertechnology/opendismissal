@@ -37,16 +37,32 @@ class SecureCSPMiddleware(MiddlewareMixin):
         # Default source - only from same origin
         csp_directives.append("default-src 'self'")
         
-        # Scripts - only from same origin, no unsafe-inline or unsafe-eval
-        # If nonce is needed for specific inline scripts, add it here
-        if nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
+        # Scripts - Django admin and dismissal app require different policies
+        # Admin pages need unsafe-inline for Django admin functionality
+        # Dismissal app uses local assets; keep unsafe-inline temporarily due to inline handlers
+        if request.path.startswith('/admin/'):
+            csp_directives.append("script-src 'self' 'unsafe-inline'")
+        elif request.path.startswith('/dissmissal/'):
+            if nonce and getattr(settings, 'CSP_ALLOW_NONCE', True):
+                csp_directives.append(f"script-src 'self' 'unsafe-inline' 'nonce-{nonce}'")
+            else:
+                csp_directives.append("script-src 'self' 'unsafe-inline'")
+        elif nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
             csp_directives.append(f"script-src 'self' 'nonce-{nonce}'")
         else:
             csp_directives.append("script-src 'self'")
         
-        # Styles - only from same origin
-        # If nonce is needed for specific inline styles, add it here
-        if nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
+        # Styles - Django admin and dismissal app require different policies
+        # Admin pages need unsafe-inline for styling
+        # Dismissal app uses local styles; allow nonce only (no CDN)
+        if request.path.startswith('/admin/'):
+            csp_directives.append("style-src 'self' 'unsafe-inline'")
+        elif request.path.startswith('/dissmissal/'):
+            if nonce and getattr(settings, 'CSP_ALLOW_NONCE', True):
+                csp_directives.append(f"style-src 'self' 'nonce-{nonce}'")
+            else:
+                csp_directives.append("style-src 'self'")
+        elif nonce and getattr(settings, 'CSP_ALLOW_NONCE', False):
             csp_directives.append(f"style-src 'self' 'nonce-{nonce}'")
         else:
             csp_directives.append("style-src 'self'")
@@ -54,8 +70,11 @@ class SecureCSPMiddleware(MiddlewareMixin):
         # Images - self and data URIs only
         csp_directives.append("img-src 'self' data:")
         
-        # Fonts - only from same origin
-        csp_directives.append("font-src 'self'")
+        # Fonts - from same origin (and data: for embedded fonts)
+        if request.path.startswith('/dissmissal/'):
+            csp_directives.append("font-src 'self' data:")
+        else:
+            csp_directives.append("font-src 'self' data:")
         
         # Connections - self and WebSocket for real-time updates
         allowed_hosts = getattr(settings, 'ALLOWED_HOSTS', [])
