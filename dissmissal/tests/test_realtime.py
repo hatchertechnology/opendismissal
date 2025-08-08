@@ -9,12 +9,11 @@ from django.test import TestCase, TransactionTestCase
 from django.contrib.auth.models import User
 from django.db import transaction
 from channels.testing import WebsocketCommunicator
-from channels.routing import URLRouter
 from channels.auth import AuthMiddlewareStack
 from channels.layers import get_channel_layer
-from asgiref.sync import sync_to_async
 import json
 import asyncio
+import os
 
 from dissmissal.models import Student, PickupEvent
 from dissmissal.consumers import DismissalConsumer
@@ -32,8 +31,9 @@ class WebSocketConnectionTests(TransactionTestCase):
     """Test WebSocket connection handling."""
 
     def setUp(self):
+        test_password = os.getenv('STAFF_USER_PASSWORD', 'secure_test_staff_321')
         self.staff_user = User.objects.create_user(
-            username="teststaff", password="testpass"
+            username="teststaff", password=test_password
         )
         self.student = Student.objects.create(
             name="Test Student",
@@ -73,8 +73,9 @@ class RealTimeBroadcastTests(TransactionTestCase):
     """Test real-time broadcasting functionality."""
 
     def setUp(self):
+        test_password = os.getenv('STAFF_USER_PASSWORD', 'secure_test_staff_321')
         self.staff_user = User.objects.create_user(
-            username="teststaff", password="testpass", 
+            username="teststaff", password=test_password, 
             first_name="Test", last_name="Staff"
         )
         self.student = Student.objects.create(
@@ -145,8 +146,9 @@ class AtomicBroadcastIntegrationTests(TransactionTestCase):
     """Test that broadcasting happens only after successful DB commits."""
 
     def setUp(self):
+        test_password = os.getenv('STAFF_USER_PASSWORD', 'secure_test_staff_321')
         self.staff_user = User.objects.create_user(
-            username="teststaff", password="testpass"
+            username="teststaff", password=test_password
         )
         self.client.force_login(self.staff_user)
         
@@ -224,8 +226,10 @@ class AtomicBroadcastIntegrationTests(TransactionTestCase):
                 # Simulate a database error that would cause rollback
                 raise Exception("Simulated database error")
                 
-        except Exception:
-            pass  # Expected exception
+        except Exception as e:
+            # Expected exception from simulated database error
+            if "Simulated database error" not in str(e):
+                self.fail(f"Unexpected exception: {e}")
             
         # Verify status wasn't changed due to rollback
         self.student.refresh_from_db()
