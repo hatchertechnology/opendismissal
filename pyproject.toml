@@ -20,7 +20,7 @@ dependencies = [
     "psycopg[binary]>=3.2.9",
     "python-decouple>=3.8",
     "redis>=5.0.0",
-    "safety>=3.6.0",
+    "safety>=3.7.0",
     "whitenoise>=6.7.0",
 ]
 
