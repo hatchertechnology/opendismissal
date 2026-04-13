@@ -28,7 +28,7 @@ dependencies = [
 dev = [
     "djlint>=1.36.4",
     "playwright>=1.54.0",
-    "pysonar>=1.1.0.2035",
+    "pysonar>=1.4.0.4676",
     "pytest-playwright>=0.7.0",
     "ruff>=0.12.7",
 ]
